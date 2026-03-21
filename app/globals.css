@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0d1117;
+  --card: #1a2235;
+  --raised: #1f2d45;
+  --amber: #f5a623;
+  --coral: #f26522;
+  --gold: #ffd166;
+  --teal: #06d6a0;
+  --sky: #4fc3f7;
+  --rose: #ef476f;
+  --lav: #9b5de5;
+  --t1: #f0e6d3;
+  --t2: #9aabb8;
+  --t3: #5e6a7a;
+  --font-display: var(--font-outfit);
+  --font-body: var(--font-dm-sans);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-raised: var(--raised);
+  --color-amber: var(--amber);
+  --color-coral: var(--coral);
+  --color-gold: var(--gold);
+  --color-teal: var(--teal);
+  --color-sky: var(--sky);
+  --color-rose: var(--rose);
+  --color-lav: var(--lav);
+  --color-t1: var(--t1);
+  --color-t2: var(--t2);
+  --color-t3: var(--t3);
+  --font-display: var(--font-outfit);
+  --font-body: var(--font-dm-sans);
+}
+
+body {
+  background: var(--bg);
+  color: var(--t1);
+  font-family: var(--font-body), "DM Sans", sans-serif;
+}
+
+/* Utility for glass card gradient overlay */
+.glass-gradient {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 50%
+  );
+}
