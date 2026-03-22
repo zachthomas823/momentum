@@ -6,12 +6,133 @@ import { TARGETS } from "@/lib/engine/constants";
 import { buildEventsFromData } from "@/lib/engine/events";
 import type { DayEvents } from "@/lib/engine/events";
 import type { DayRecord } from "@/lib/db/queries";
-import EventCard from "@/components/trajectory/EventCard";
+import EventCard, { ConfBadge } from "@/components/trajectory/EventCard";
+import type { DayEvent } from "@/lib/engine/events";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const DAY_WIDTH = 130;
 const H = 280;
+
+// ─── Expanded Detail Panel ──────────────────────────────────────────────────
+
+function ExpandedPanel({
+  event,
+  dayLabel,
+  onClose,
+}: {
+  event: DayEvent;
+  dayLabel: string;
+  onClose: () => void;
+}) {
+  const impact = event.impact;
+  if (!impact) return null;
+
+  const color =
+    event.good === true ? "#06d6a0" : event.good === false ? "#ef476f" : "#9aabb8";
+
+  return (
+    <div
+      className="border-t border-white/10 p-4 overflow-y-auto"
+      style={{
+        minHeight: "55vh",
+        maxHeight: "75vh",
+        background: "rgba(255,255,255,0.02)",
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-base font-bold" style={{ color }}>
+            {event.label}
+          </span>
+          <span className="text-xs text-t3">{dayLabel}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-t3 text-xs px-2 py-1 rounded-lg bg-white/5 border border-white/10 cursor-pointer"
+        >
+          Close
+        </button>
+      </div>
+
+      {/* Summary */}
+      <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--t1)" }}>
+        {impact.summary}
+      </p>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {impact.weeklyTrajectoryShift && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/[0.06]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+              Trajectory Shift
+            </div>
+            <div className="text-sm font-bold" style={{ color: "var(--amber)" }}>
+              {impact.weeklyTrajectoryShift[0] > 0 ? "+" : ""}
+              {(impact.weeklyTrajectoryShift[0] * 7).toFixed(2)} to{" "}
+              {impact.weeklyTrajectoryShift[1] > 0 ? "+" : ""}
+              {(impact.weeklyTrajectoryShift[1] * 7).toFixed(2)} lbs/wk
+            </div>
+          </div>
+        )}
+        {impact.kcalAdded && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/[0.06]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+              Caloric Impact
+            </div>
+            <div className="text-sm font-bold text-t1">
+              +{impact.kcalAdded[0]}–{impact.kcalAdded[1]} kcal
+            </div>
+          </div>
+        )}
+        {impact.kcalBurned && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/[0.06]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+              Calories Burned
+            </div>
+            <div className="text-sm font-bold text-t1">
+              {impact.kcalBurned[0]}–{impact.kcalBurned[1]} kcal
+            </div>
+          </div>
+        )}
+        {impact.kcalDelta && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/[0.06]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+              Daily Balance
+            </div>
+            <div className="text-sm font-bold text-t1">
+              {impact.kcalDelta[0] > 0 ? "+" : ""}
+              {impact.kcalDelta[0]} to {impact.kcalDelta[1] > 0 ? "+" : ""}
+              {impact.kcalDelta[1]} kcal
+            </div>
+          </div>
+        )}
+        {impact.scaleImpact && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/[0.06]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+              Scale Impact
+            </div>
+            <div className="text-sm font-bold text-t1">
+              +{impact.scaleImpact[0]}–{impact.scaleImpact[1]} lbs
+            </div>
+            <div className="text-[10px] text-t3">{impact.scaleNote}</div>
+          </div>
+        )}
+        {impact.duration && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/[0.06]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+              Recovery
+            </div>
+            <div className="text-sm font-bold text-t1">{impact.duration}</div>
+          </div>
+        )}
+      </div>
+
+      <ConfBadge level={impact.conf} />
+    </div>
+  );
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -361,12 +482,12 @@ export default function Trajectory({
               return (
                 <div
                   key={`${day.dateKey}-${i}`}
-                  className="relative flex flex-col items-center pt-2"
+                  className="relative flex flex-col items-center justify-end"
                   style={{ width: DAY_WIDTH, height: H }}
                 >
-                  {/* Event card stack */}
+                  {/* Event card stack — positioned above date label */}
                   <div
-                    className="flex flex-col items-center gap-0.5 z-[2]"
+                    className="flex flex-col items-center gap-0.5 z-[2] mb-0.5"
                     style={{ width: DAY_WIDTH - 12 }}
                   >
                     {ed?.events?.map((ev, j) => (
@@ -375,19 +496,19 @@ export default function Trajectory({
                         event={ev}
                         eventId={`${i}-${j}`}
                         onTap={handleEventTap}
-                        expanded={expandedEvent === `${i}-${j}`}
+                        expanded={false}
                       />
                     ))}
                   </div>
 
                   {/* Bottom date label */}
-                  <div className="absolute bottom-2 left-0 right-0 text-center z-[2]">
+                  <div className="pb-2 text-center z-[2]">
                     <div
                       className="text-[10px]"
                       style={{
                         fontWeight: day.isToday ? 800 : 500,
                         color: day.isToday
-                          ? "#f5a623"
+                          ? (metric === "bf" ? "#06d6a0" : "#f5a623")
                           : day.isFuture
                             ? "rgba(154,171,184,0.3)"
                             : "var(--t3)",
@@ -419,16 +540,33 @@ export default function Trajectory({
       />
 
       {/* Swipe hint */}
-      <div
-        className="absolute bottom-6 right-3 text-[9px] opacity-50 z-[3]"
-        style={{
-          color: "var(--t3)",
-          fontFamily: "var(--font-b)",
-          fontWeight: 600,
-        }}
-      >
-        ← swipe →
-      </div>
+      {!expandedEvent && (
+        <div
+          className="absolute bottom-6 right-3 text-[9px] opacity-50 z-[3]"
+          style={{
+            color: "var(--t3)",
+            fontFamily: "var(--font-b)",
+            fontWeight: 600,
+          }}
+        >
+          ← swipe →
+        </div>
+      )}
+
+      {/* ── Expanded event detail panel ─────────────────────────────── */}
+      {expandedEvent && (() => {
+        const [dayIdx, evIdx] = expandedEvent.split("-").map(Number);
+        const ev = eventData[dayIdx]?.events?.[evIdx];
+        if (!ev?.impact) return null;
+        const dayLabel = dayLabels[dayIdx];
+        return (
+          <ExpandedPanel
+            event={ev}
+            dayLabel={dayLabel?.isToday ? "Today" : dayLabel?.label ?? ""}
+            onClose={() => handleEventTap(expandedEvent)}
+          />
+        );
+      })()}
     </div>
   );
 }
