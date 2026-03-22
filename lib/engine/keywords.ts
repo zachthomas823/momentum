@@ -181,8 +181,11 @@ const handleSleep: RouteHandler = (_query, match) => {
 
 // ── Exercise Handler (strength) ──────────────────────────────────────────────
 
-const handleExerciseStrength: RouteHandler = () => {
-  const duration = 50; // default gym session
+const handleExerciseStrength: RouteHandler = (queryText) => {
+  // Extract duration from query if mentioned (e.g., "70 min workout", "1 hour gym")
+  const minMatch = queryText.match(/(\d+)\s*min/i);
+  const hrMatch = queryText.match(/(\d+\.?\d*)\s*h(?:our|r)/i);
+  const duration = minMatch ? parseInt(minMatch[1]) : hrMatch ? Math.round(parseFloat(hrMatch[1]) * 60) : 50;
   const impact = exerciseImpact("strength", duration);
   const scenario = scenarioImpact({ exercise: { type: "strength", duration } });
 
@@ -203,8 +206,10 @@ const handleExerciseStrength: RouteHandler = () => {
 
 // ── Exercise Handler (cardio) ────────────────────────────────────────────────
 
-const handleExerciseCardio: RouteHandler = () => {
-  const duration = 30; // default run
+const handleExerciseCardio: RouteHandler = (queryText) => {
+  const minMatch = queryText.match(/(\d+)\s*min/i);
+  const hrMatch = queryText.match(/(\d+\.?\d*)\s*h(?:our|r)/i);
+  const duration = minMatch ? parseInt(minMatch[1]) : hrMatch ? Math.round(parseFloat(hrMatch[1]) * 60) : 30;
   const impact = exerciseImpact("run", duration);
   const scenario = scenarioImpact({ exercise: { type: "run", duration } });
 
@@ -316,6 +321,12 @@ export function parseQuery(
   query: string,
   context?: { currentWeight?: number; pace?: number }
 ): KeywordResponse | null {
+  // Contextual queries referencing "today" / "my" / "this" data should go to Claude
+  // because the local engine doesn't have access to the user's actual logged data
+  if (/\b(today'?s?|my|this)\b.*(workout|session|sleep|diet|meal|run)/i.test(query)) {
+    return null;
+  }
+
   // Compound queries should go to Claude — detect multiple factor keywords
   const factorKeywords = [
     /\bdrink/i,
