@@ -85,6 +85,7 @@ export default function ImpactPage() {
   const [askResult, setAskResult] = useState<AskResponse | null>(null);
   const [scenarios, setScenarios] = useState<SavedScenario[]>([]);
   const [scenariosLoading, setScenariosLoading] = useState(true);
+  const [presetsOpen, setPresetsOpen] = useState(false);
 
   // ── Fetch saved scenarios ──────────────────────────────────────────────
 
@@ -176,15 +177,21 @@ export default function ImpactPage() {
         </p>
       </div>
 
-      {/* ── Presets Section ──────────────────────────────────────────────── */}
+      {/* ── Presets Section (collapsible) ────────────────────────────────── */}
       <section className="mb-8">
-        <h2
-          className="text-sm font-bold uppercase tracking-wider mb-3"
-          style={{ color: "var(--t3)", fontFamily: "var(--font-display)" }}
+        <button
+          className="flex items-center gap-2 w-full text-left mb-3 cursor-pointer"
+          onClick={() => setPresetsOpen(!presetsOpen)}
         >
-          Head-to-Head
-        </h2>
-        {PRESETS.map((preset, i) => (
+          <h2
+            className="text-sm font-bold uppercase tracking-wider"
+            style={{ color: "var(--t3)", fontFamily: "var(--font-display)" }}
+          >
+            Head-to-Head
+          </h2>
+          <span className="text-[10px] text-t3">{presetsOpen ? "▾" : "▸"}</span>
+        </button>
+        {presetsOpen && PRESETS.map((preset, i) => (
           <PresetCard key={i} {...preset} />
         ))}
       </section>
