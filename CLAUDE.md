@@ -79,10 +79,12 @@ Required in `.env.local` (or Vercel env):
 - `FITBIT_CLIENT_ID` — Fitbit API app client ID
 - `FITBIT_CLIENT_SECRET` — Fitbit API app client secret
 
-Claude AI:
-- `ANTHROPIC_API_KEY` — Claude API key (required for "Ask Anything" feature; OAuth tokens are not supported by the Messages API)
+Claude AI (choose one):
+- `ANTHROPIC_API_KEY` — Claude API key for production use (recommended for any real deployment)
+- `CLAUDE_CREDENTIALS_JSON` — **DEV HACK**: Full JSON from `~/.claude/.credentials.json` for Claude Max OAuth. Auto-refreshes expired tokens via `https://platform.claude.com/v1/oauth/token`. Tokens expire every ~4 hours; refresh tokens may be rotated by the local CLI. This is a temporary workaround for development — any real release should use `ANTHROPIC_API_KEY`.
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob Storage token (required for progress photo uploads)
 
-If no API key is set, the impact analyzer degrades gracefully to the local keyword parser.
+If no Claude auth is configured, the impact analyzer degrades gracefully to the local keyword parser.
 
 ## Historical Files (POC)
 

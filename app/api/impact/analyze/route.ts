@@ -1,15 +1,12 @@
 // ─── POST /api/impact/analyze ────────────────────────────────────────────────
 // Handles compound "What if?" queries via Claude with personalized context.
-// Uses Claude Agent SDK (spawns claude CLI binary) with credentials from:
-//   - CLAUDE_CREDENTIALS_JSON env var (full JSON from ~/.claude/.credentials.json)
-//   - Falls back to default credentials file (local dev)
+// Uses Claude Agent SDK (spawns claude CLI binary) with Claude Max OAuth.
 // Falls back to local keyword parser on timeout or error.
 
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
-import os from "os";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { prepareClaudeCredentials } from "@/lib/claude/credentials";
 import { parseQuery } from "@/lib/engine/keywords";
 import {
   getLast14Days,
@@ -89,36 +86,6 @@ async function assembleUserContext(): Promise<string> {
   return lines.join("\n");
 }
 
-// ─── Credentials setup ───────────────────────────────────────────────────────
-// Returns the HOME dir to use for the subprocess. If CLAUDE_CREDENTIALS_JSON
-// is set, writes the credentials file to /tmp so the CLI can find it.
-
-function prepareCredentials(): { home: string } | null {
-  const credsJson = process.env.CLAUDE_CREDENTIALS_JSON;
-
-  if (credsJson) {
-    // Vercel / production: write credentials JSON to /tmp/.claude/.credentials.json
-    try {
-      const claudeDir = "/tmp/.claude";
-      if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
-      fs.writeFileSync(path.join(claudeDir, ".credentials.json"), credsJson, "utf8");
-      return { home: "/tmp" };
-    } catch (e) {
-      console.error("[impact/analyze] Failed to write credentials to /tmp:", e);
-      return null;
-    }
-  }
-
-  // Local dev: use default HOME — CLI will find ~/.claude/.credentials.json naturally
-  const defaultHome = os.homedir();
-  const localCreds = path.join(defaultHome, ".claude", ".credentials.json");
-  if (fs.existsSync(localCreds)) {
-    return { home: defaultHome };
-  }
-
-  return null;
-}
-
 // ─── Route Handler ───────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -138,7 +105,7 @@ export async function POST(request: NextRequest) {
     const trimmedQuery = userQuery.trim();
     const localResult = parseQuery(trimmedQuery);
 
-    const creds = prepareCredentials();
+    const creds = await prepareClaudeCredentials();
 
     if (creds) {
       const controller = new AbortController();

@@ -3,14 +3,13 @@
 // same type using Claude's vision capabilities.
 
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
 import { getDb } from "@/lib/db";
 import { photos } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getPreviousPhoto, updatePhotoAnalysis } from "@/lib/db/queries";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import fs from "fs";
-import path from "path";
-import os from "os";
+import { prepareClaudeCredentials } from "@/lib/claude/credentials";
 
 const PHOTO_SYSTEM_PROMPT = `You are a body composition visual analyst for a fitness tracker app. The user is targeting a wedding on Sept 5, 2026.
 
@@ -26,24 +25,6 @@ Rules:
 - Frame positively — emphasize progress, not criticism
 - Keep response under 200 words
 - If only one photo (no comparison), provide a baseline assessment`;
-
-function prepareCredentials(): { home: string } | null {
-  const credsJson = process.env.CLAUDE_CREDENTIALS_JSON;
-  if (credsJson) {
-    try {
-      const claudeDir = "/tmp/.claude";
-      if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
-      fs.writeFileSync(path.join(claudeDir, ".credentials.json"), credsJson, "utf8");
-      return { home: "/tmp" };
-    } catch {
-      return null;
-    }
-  }
-  const defaultHome = os.homedir();
-  const localCreds = path.join(defaultHome, ".claude", ".credentials.json");
-  if (fs.existsSync(localCreds)) return { home: defaultHome };
-  return null;
-}
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -86,7 +67,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use Agent SDK (same pattern as impact/analyze)
-    const creds = prepareCredentials();
+    const creds = await prepareClaudeCredentials();
     if (!creds) {
       return NextResponse.json(
         { error: "No Claude credentials available for photo analysis" },
