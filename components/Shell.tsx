@@ -15,7 +15,7 @@ const tabs: Tab[] = [
   { href: "/impact", label: "Impact", icon: "⟁" },
   { href: "/log", label: "Log", icon: "+", raised: true },
   { href: "/weekly", label: "Summary", icon: "〰" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
+  { href: "/progress", label: "Progress", icon: "📸" },
 ];
 
 export function Shell() {

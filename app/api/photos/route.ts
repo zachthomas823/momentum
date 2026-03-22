@@ -1,13 +1,29 @@
 // ─── Photo upload & listing API ──────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { put, getDownloadUrl } from "@vercel/blob";
 import {
   getPhotosForDate,
   getPhotoTimeline,
   insertPhoto,
   getLatestWeight,
 } from "@/lib/db/queries";
+
+/** Generate signed download URLs for private blob photos. */
+async function withDownloadUrls<T extends { blobUrl: string }>(
+  photos: T[]
+): Promise<(T & { downloadUrl: string })[]> {
+  return Promise.all(
+    photos.map(async (p) => {
+      try {
+        const downloadUrl = await getDownloadUrl(p.blobUrl);
+        return { ...p, downloadUrl };
+      } catch {
+        return { ...p, downloadUrl: p.blobUrl };
+      }
+    })
+  );
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,7 +33,7 @@ export async function GET(req: NextRequest) {
     if (timeline === "true") {
       const limit = parseInt(req.nextUrl.searchParams.get("limit") ?? "20", 10);
       const photos = await getPhotoTimeline(limit);
-      return NextResponse.json(photos);
+      return NextResponse.json(await withDownloadUrls(photos));
     }
 
     if (!date) {
@@ -28,7 +44,7 @@ export async function GET(req: NextRequest) {
     }
 
     const photos = await getPhotosForDate(date);
-    return NextResponse.json(photos);
+    return NextResponse.json(await withDownloadUrls(photos));
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
@@ -65,9 +81,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Upload to Vercel Blob
+    // Upload to Vercel Blob (private store)
     const pathname = `progress/${date}/${type}-${Date.now()}.jpg`;
-    const blob = await put(pathname, photo, { access: "public" });
+    const blob = await put(pathname, photo, { access: "private", addRandomSuffix: true });
 
     // Pair with weight/BF% from the same date
     const latestWeight = await getLatestWeight();
@@ -83,7 +99,9 @@ export async function POST(req: NextRequest) {
       bodyFatPct,
     });
 
-    return NextResponse.json(record);
+    // Return with signed download URL
+    const downloadUrl = await getDownloadUrl(blob.url);
+    return NextResponse.json({ ...record, downloadUrl });
   } catch (err) {
     console.error("[photos] Upload error:", err);
     return NextResponse.json(

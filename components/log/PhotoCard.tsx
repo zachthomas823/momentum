@@ -11,6 +11,7 @@ interface PhotoRecord {
   date: string;
   type: string;
   blobUrl: string;
+  downloadUrl?: string;
   weightLbs: number | null;
   bodyFatPct: number | null;
   analysisJson: { text: string; comparedWith: number | null } | null;
@@ -49,6 +50,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const frontRef = useRef<HTMLInputElement>(null);
   const sideRef = useRef<HTMLInputElement>(null);
 
@@ -71,6 +73,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
 
   const handleCapture = async (type: 'front' | 'side', file: File) => {
     setUploading(type);
+    setError(null);
     try {
       const compressed = await compressImage(file);
       const formData = new FormData();
@@ -82,9 +85,12 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
       if (res.ok) {
         await loadData();
         onSaved();
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Upload failed');
       }
-    } catch {
-      // Silently fail
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
       setUploading(null);
     }
@@ -123,6 +129,12 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
         {photos.length > 0 && <Pill color="var(--teal)">Logged</Pill>}
       </div>
 
+      {error && (
+        <div className="mb-3 text-xs p-2 rounded-lg bg-rose/10 border border-rose/20" style={{ color: 'var(--rose)' }}>
+          {error}
+        </div>
+      )}
+
       {/* Capture slots */}
       <div className="flex gap-3 mb-4">
         {/* Front */}
@@ -132,7 +144,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
           </label>
           {frontPhoto ? (
             <img
-              src={frontPhoto.blobUrl}
+              src={frontPhoto.downloadUrl ?? frontPhoto.blobUrl}
               alt="Front progress"
               className="w-full aspect-[3/4] object-cover rounded-lg border border-white/10"
             />
@@ -168,7 +180,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
           </label>
           {sidePhoto ? (
             <img
-              src={sidePhoto.blobUrl}
+              src={sidePhoto.downloadUrl ?? sidePhoto.blobUrl}
               alt="Side progress"
               className="w-full aspect-[3/4] object-cover rounded-lg border border-white/10"
             />
