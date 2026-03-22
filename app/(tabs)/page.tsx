@@ -207,6 +207,7 @@ export default function DashboardPage() {
           days={data.days}
           onEventTap={(id) => setExpandedEvent(id === expandedEvent ? null : id)}
           expandedEvent={expandedEvent}
+          metric={showBf ? "bf" : "weight"}
         />
       </div>
 
@@ -234,12 +235,12 @@ export default function DashboardPage() {
             }}
           >
             {showBf
-              ? displayBf != null ? `${displayBf.toFixed(1)}%` : "—"
+              ? data.bf7dSma != null ? `${data.bf7dSma.toFixed(1)}%` : "—"
               : data.weight7dSma != null ? `${data.weight7dSma.toFixed(1)}` : "—"}
           </span>
           <span className="text-t3 text-[10px] mt-0.5">
             {showBf
-              ? `Target: ${data.targets.bachelorParty.bodyFat}%`
+              ? `Target: ${data.targets.bachelorParty.bodyFat}% · 7-day avg`
               : `Target: ${data.targets.bachelorParty.weight} lbs · 7-day avg`}
           </span>
           <span className="text-t3 text-[9px] mt-1 opacity-50">

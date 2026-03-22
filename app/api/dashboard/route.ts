@@ -30,6 +30,7 @@ export interface DashboardData {
   currentWeight: number | null;
   currentBodyFat: number | null;
   weight7dSma: number | null;
+  bf7dSma: number | null;
   pace: PaceResult;
   tdee: TdeePipelineResult;
   milestones: MilestoneResult[];
@@ -100,6 +101,10 @@ export async function GET() {
       days.filter((d) => d.weightLbs != null).map((d) => d.weightLbs!),
       7
     );
+    const bf7dSma = sma(
+      days.filter((d) => d.bodyFatPct != null).map((d) => d.bodyFatPct!),
+      7
+    );
 
     const data: DashboardData = {
       days,
@@ -108,6 +113,7 @@ export async function GET() {
       currentWeight: latestWeight?.weightLbs ?? null,
       currentBodyFat,
       weight7dSma,
+      bf7dSma,
       pace,
       tdee,
       milestones,

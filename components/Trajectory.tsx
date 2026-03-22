@@ -20,6 +20,7 @@ interface TrajectoryProps {
   windowDays?: number;
   onEventTap?: (eventId: string) => void;
   expandedEvent?: string | null;
+  metric?: "weight" | "bf";
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ export default function Trajectory({
   windowDays = 7,
   onEventTap,
   expandedEvent: controlledExpanded,
+  metric = "weight",
 }: TrajectoryProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -111,48 +113,60 @@ export default function Trajectory({
     const plotH = H - pad.t - pad.b;
     const nowFrac = (windowDays - 1) / (windowDays + 2);
 
-    // Collect weight data points
-    const weightPts: { x: number; lbs: number; idx: number }[] = [];
+    // Color scheme based on metric
+    const isBf = metric === "bf";
+    const accentRgb = isBf ? "6,214,160" : "245,166,35";
+    const accentHex = isBf ? "#06d6a0" : "#f5a623";
+    const targetVal = isBf ? TARGETS.bachelorParty.bodyFat : TARGETS.bachelorParty.weight;
+    const startVal = isBf ? (TARGETS.startBodyFat ?? 18) : TARGETS.startWeight;
+    const unit = isBf ? "%" : "";
+
+    // Collect data points
+    const dataPts: { x: number; val: number; idx: number }[] = [];
     pastDays.forEach((d, i) => {
-      if (d.weightLbs != null) {
-        weightPts.push({
+      const v = isBf ? d.bodyFatPct : d.weightLbs;
+      if (v != null) {
+        dataPts.push({
           x: i * DAY_WIDTH + DAY_WIDTH / 2,
-          lbs: d.weightLbs,
+          val: v,
           idx: i,
         });
       }
     });
 
-    // Y-axis range from data — guard single-point with ±3 lbs min range
-    const allWeights = weightPts.map((p) => p.lbs);
-    let wMax = allWeights.length
-      ? Math.max(...allWeights) + 2
-      : TARGETS.startWeight + 2;
-    let wMin = allWeights.length
-      ? Math.min(Math.min(...allWeights) - 2, TARGETS.bachelorParty.weight - 1)
-      : TARGETS.bachelorParty.weight - 2;
+    // Y-axis range from data
+    const allVals = dataPts.map((p) => p.val);
+    const minRange = isBf ? 3 : 6;
+    let wMax = allVals.length
+      ? Math.max(...allVals) + (isBf ? 1 : 2)
+      : startVal + (isBf ? 1 : 2);
+    let wMin = allVals.length
+      ? Math.min(Math.min(...allVals) - (isBf ? 1 : 2), targetVal - (isBf ? 0.5 : 1))
+      : targetVal - (isBf ? 1 : 2);
 
-    // Guard: ensure minimum 6 lb range (±3) to prevent divide-by-zero
-    if (wMax - wMin < 6) {
+    // Guard: ensure minimum range to prevent divide-by-zero
+    if (wMax - wMin < minRange) {
       const mid = (wMax + wMin) / 2;
-      wMax = mid + 3;
-      wMin = mid - 3;
+      wMax = mid + minRange / 2;
+      wMin = mid - minRange / 2;
     }
 
-    const yScale = (lbs: number) =>
-      pad.t + plotH * (1 - (lbs - wMin) / (wMax - wMin));
+    const yScale = (v: number) =>
+      pad.t + plotH * (1 - (v - wMin) / (wMax - wMin));
 
-    // Pace and last weight for projections
+    // Pace and last value for projections
     const pace = derivedPace(days);
-    const lastW = allWeights.length
-      ? allWeights[allWeights.length - 1]
-      : TARGETS.startWeight;
+    const lastW = allVals.length
+      ? allVals[allVals.length - 1]
+      : startVal;
+    // For BF%, project using a rough ratio of BF% change per lb lost
+    const paceInMetric = isBf ? pace.rate * 0.15 : pace.rate;
     const futureStart = windowDays * DAY_WIDTH;
 
     // Gradient band behind everything
     const bandGrad = ctx.createLinearGradient(0, 0, totalW, 0);
-    bandGrad.addColorStop(0, "rgba(245,166,35,0.15)");
-    bandGrad.addColorStop(nowFrac, "rgba(245,166,35,0.12)");
+    bandGrad.addColorStop(0, `rgba(${accentRgb},0.15)`);
+    bandGrad.addColorStop(nowFrac, `rgba(${accentRgb},0.12)`);
     bandGrad.addColorStop(
       Math.min(1, nowFrac + 0.1),
       "rgba(6,214,160,0.08)",
@@ -162,8 +176,8 @@ export default function Trajectory({
     // Projection cone (3 future days)
     for (let i = 0; i < 3; i++) {
       const dayOff = i + 1;
-      const projW = lastW - pace.rate * (dayOff / 7);
-      const unc = 0.4 * dayOff;
+      const projW = lastW - paceInMetric * (dayOff / 7);
+      const unc = (isBf ? 0.1 : 0.4) * dayOff;
       const cx = futureStart + i * DAY_WIDTH + DAY_WIDTH / 2;
       const yHi = yScale(projW + unc);
       const yLo = yScale(projW - unc);
@@ -174,11 +188,8 @@ export default function Trajectory({
     }
 
     // Target line (dashed)
-    if (
-      TARGETS.bachelorParty.weight >= wMin &&
-      TARGETS.bachelorParty.weight <= wMax
-    ) {
-      const ty = yScale(TARGETS.bachelorParty.weight);
+    if (targetVal >= wMin && targetVal <= wMax) {
+      const ty = yScale(targetVal);
       ctx.save();
       ctx.setLineDash([4, 6]);
       ctx.strokeStyle = "rgba(6,214,160,0.25)";
@@ -191,15 +202,15 @@ export default function Trajectory({
       ctx.fillStyle = "rgba(6,214,160,0.4)";
       ctx.font = "bold 9px 'DM Sans',sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText(`${TARGETS.bachelorParty.weight} target`, 8, ty - 5);
+      ctx.fillText(`${targetVal}${unit} target`, 8, ty - 5);
     }
 
-    // Day separator lines (amber for TODAY)
+    // Day separator lines (accent color for TODAY)
     for (let i = 0; i < dayLabels.length; i++) {
       const x = i * DAY_WIDTH + DAY_WIDTH / 2;
       ctx.beginPath();
       ctx.strokeStyle = dayLabels[i].isToday
-        ? "rgba(245,166,35,0.3)"
+        ? `rgba(${accentRgb},0.3)`
         : "rgba(255,255,255,0.03)";
       ctx.lineWidth = dayLabels[i].isToday ? 1.5 : 0.5;
       if (dayLabels[i].isToday) ctx.setLineDash([5, 5]);
@@ -209,17 +220,17 @@ export default function Trajectory({
       ctx.setLineDash([]);
     }
 
-    // EMA trend line (only if 2+ weight points)
-    if (weightPts.length >= 2) {
-      const smoothed = ema(weightPts.map((p) => p.lbs));
+    // EMA trend line (only if 2+ data points)
+    if (dataPts.length >= 2) {
+      const smoothed = ema(dataPts.map((p) => p.val));
 
       // Solid trend through actual data
       ctx.beginPath();
-      ctx.strokeStyle = "rgba(245,166,35,0.6)";
+      ctx.strokeStyle = `rgba(${accentRgb},0.6)`;
       ctx.lineWidth = 2.5;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      weightPts.forEach((p, i) => {
+      dataPts.forEach((p, i) => {
         const y = yScale(smoothed[i]);
         if (i === 0) ctx.moveTo(p.x, y);
         else ctx.lineTo(p.x, y);
@@ -228,7 +239,7 @@ export default function Trajectory({
       const trendEnd = smoothed[smoothed.length - 1];
       for (let i = 1; i <= 3; i++) {
         const px = futureStart + (i - 1) * DAY_WIDTH + DAY_WIDTH / 2;
-        const pw = trendEnd - pace.rate * (i / 7);
+        const pw = trendEnd - paceInMetric * (i / 7);
         ctx.lineTo(px, yScale(pw));
       }
       ctx.stroke();
@@ -239,26 +250,26 @@ export default function Trajectory({
       ctx.strokeStyle = "rgba(6,214,160,0.35)";
       ctx.lineWidth = 2;
       ctx.moveTo(
-        weightPts[weightPts.length - 1].x,
+        dataPts[dataPts.length - 1].x,
         yScale(trendEnd),
       );
       for (let i = 1; i <= 3; i++) {
         ctx.lineTo(
           futureStart + (i - 1) * DAY_WIDTH + DAY_WIDTH / 2,
-          yScale(trendEnd - pace.rate * (i / 7)),
+          yScale(trendEnd - paceInMetric * (i / 7)),
         );
       }
       ctx.stroke();
       ctx.setLineDash([]);
     }
 
-    // Raw weight dots with radial glow + labels
-    weightPts.forEach((p) => {
-      const y = yScale(p.lbs);
+    // Raw data dots with radial glow + labels
+    dataPts.forEach((p) => {
+      const y = yScale(p.val);
       // Glow
       const g = ctx.createRadialGradient(p.x, y, 0, p.x, y, 12);
-      g.addColorStop(0, "rgba(245,166,35,0.25)");
-      g.addColorStop(1, "rgba(245,166,35,0)");
+      g.addColorStop(0, `rgba(${accentRgb},0.25)`);
+      g.addColorStop(1, `rgba(${accentRgb},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(p.x, y, 12, 0, Math.PI * 2);
@@ -266,18 +277,18 @@ export default function Trajectory({
       // Dot
       ctx.beginPath();
       ctx.arc(p.x, y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = "#f5a623";
+      ctx.fillStyle = accentHex;
       ctx.fill();
       ctx.beginPath();
       ctx.arc(p.x, y, 4, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(245,166,35,0.5)";
+      ctx.strokeStyle = `rgba(${accentRgb},0.5)`;
       ctx.lineWidth = 1.5;
       ctx.stroke();
       // Label
-      ctx.fillStyle = "rgba(245,166,35,0.8)";
+      ctx.fillStyle = `rgba(${accentRgb},0.8)`;
       ctx.font = "bold 10px 'Outfit',sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(p.lbs.toFixed(1), p.x, y - 10);
+      ctx.fillText(`${p.val.toFixed(1)}${unit}`, p.x, y - 10);
     });
 
     // Future zone fade overlay
@@ -292,15 +303,15 @@ export default function Trajectory({
     ctx.fillStyle = fg;
     ctx.fillRect(futureStart - 20, 0, totalW - futureStart + 20, H);
 
-    // Y-axis weight labels
+    // Y-axis labels
     ctx.fillStyle = "rgba(154,171,184,0.3)";
     ctx.font = "9px 'DM Sans',sans-serif";
     ctx.textAlign = "left";
-    const yStep = Math.ceil((wMax - wMin) / 4);
-    for (let w = Math.ceil(wMin); w <= wMax; w += yStep) {
-      ctx.fillText(`${w}`, 4, yScale(w) + 3);
+    const yStep = isBf ? Math.max(0.5, Math.ceil((wMax - wMin) / 4 * 2) / 2) : Math.ceil((wMax - wMin) / 4);
+    for (let w = isBf ? Math.ceil(wMin * 2) / 2 : Math.ceil(wMin); w <= wMax; w += yStep) {
+      ctx.fillText(`${isBf ? w.toFixed(1) + "%" : w}`, 4, yScale(w) + 3);
     }
-  }, [windowDays, totalW, days, pastDays, dayLabels]);
+  }, [windowDays, totalW, days, pastDays, dayLabels, metric]);
 
   // ─── Auto-scroll to TODAY on mount ───────────────────────────────────────
 
