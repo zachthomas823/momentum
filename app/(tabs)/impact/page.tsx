@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/Card";
 import { Btn } from "@/components/ui/Btn";
 import { ConfBadge } from "@/components/trajectory/EventCard";
@@ -125,6 +125,7 @@ export default function ImpactPage() {
 
       const data: AskResponse = await res.json();
       setAskResult(data);
+      setQuery("");
 
       // Auto-save to scenarios (fire-and-forget)
       if (data.response || data.summary) {
@@ -197,17 +198,25 @@ export default function ImpactPage() {
           Ask Anything
         </h2>
         <Card>
-          <div className="flex gap-2 items-center">
-            <input
-              type="text"
+          <div className="flex gap-2 items-end">
+            <textarea
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                // Auto-resize
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit();
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
               }}
               placeholder="What if I have 4 drinks tonight?"
               disabled={loading}
-              className="flex-1 bg-transparent text-sm outline-none min-w-0"
+              rows={1}
+              className="flex-1 bg-transparent text-sm outline-none min-w-0 resize-none overflow-hidden"
               style={{
                 color: "var(--t1)",
                 fontFamily: "var(--font-body)",
@@ -216,7 +225,7 @@ export default function ImpactPage() {
             <Btn
               onClick={handleSubmit}
               disabled={loading || !query.trim()}
-              className="!px-3 !min-h-[36px] text-xs"
+              className="!px-3 !min-h-[36px] text-xs shrink-0"
             >
               {loading ? (
                 <span className="inline-block w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
