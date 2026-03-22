@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Label } from "@/components/ui/Label";
+import { Btn } from "@/components/ui/Btn";
 
 // ─── Types (mirrored from API) ───────────────────────────────────────────────
 
@@ -224,6 +225,28 @@ export default function WeeklyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Momentum analysis state
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(true);
+  const [analysisRefreshing, setAnalysisRefreshing] = useState(false);
+
+  const fetchAnalysis = useCallback(async (refresh = false) => {
+    if (refresh) setAnalysisRefreshing(true);
+    try {
+      const url = refresh ? "/api/weekly/analysis?refresh=true" : "/api/weekly/analysis";
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.analysis) setAnalysis(data.analysis);
+      }
+    } catch {
+      // non-fatal
+    } finally {
+      setAnalysisLoading(false);
+      setAnalysisRefreshing(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetch("/api/weekly")
       .then((res) => {
@@ -233,7 +256,9 @@ export default function WeeklyPage() {
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+
+    fetchAnalysis();
+  }, [fetchAnalysis]);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -257,6 +282,49 @@ export default function WeeklyPage() {
 
   return (
     <div className="space-y-4 mt-8">
+      {/* ── Momentum Analysis ──────────────────────────────────────────── */}
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <Label>Momentum</Label>
+          {analysis && (
+            <button
+              onClick={() => fetchAnalysis(true)}
+              disabled={analysisRefreshing}
+              className="text-[10px] text-t3 px-2 py-1 rounded-lg bg-white/5 border border-white/10 cursor-pointer disabled:opacity-50"
+            >
+              {analysisRefreshing ? "..." : "Refresh"}
+            </button>
+          )}
+        </div>
+        {analysisLoading ? (
+          <div className="animate-pulse space-y-2">
+            <div className="h-3 bg-white/[0.06] rounded w-full" />
+            <div className="h-3 bg-white/[0.06] rounded w-5/6" />
+            <div className="h-3 bg-white/[0.06] rounded w-4/6" />
+            <div className="h-3 bg-white/[0.06] rounded w-full" />
+            <div className="h-3 bg-white/[0.06] rounded w-3/4" />
+          </div>
+        ) : analysis ? (
+          <p
+            className="text-[13px] leading-[1.7] whitespace-pre-wrap"
+            style={{ color: "var(--t1)" }}
+          >
+            {analysis}
+          </p>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-xs text-t3 mb-3">Analysis couldn&apos;t be generated right now</p>
+            <Btn
+              onClick={() => fetchAnalysis(true)}
+              disabled={analysisRefreshing}
+              className="text-xs"
+            >
+              {analysisRefreshing ? "Generating..." : "Generate Analysis"}
+            </Btn>
+          </div>
+        )}
+      </Card>
+
       {/* Week-over-Week Stats */}
       <Card>
         <Label className="mb-3 block">Week-over-Week</Label>
