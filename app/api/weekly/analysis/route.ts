@@ -3,6 +3,8 @@
 // Claude pulls 30 days via MCP tools, then writes a focused analysis.
 // Cached daily — regenerate with ?refresh=true.
 
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest) {
         }
       })(),
       new Promise<null>((resolve) =>
-        setTimeout(() => { controller.abort(); resolve(null); }, 30000)
+        setTimeout(() => { controller.abort(); resolve(null); }, 55000)
       ),
     ]);
 

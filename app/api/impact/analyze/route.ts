@@ -4,6 +4,8 @@
 // user's actual logged data in a multi-turn conversation before answering.
 // Falls back to local keyword parser on timeout or error.
 
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
