@@ -1,23 +1,15 @@
 // ─── POST /api/impact/analyze ────────────────────────────────────────────────
-// Handles compound "What if?" queries via Claude with personalized context.
-// Uses Claude Agent SDK (spawns claude CLI binary) with Claude Max OAuth.
+// Handles "What if?" and contextual fitness queries via Claude Agent SDK.
+// Claude has access to fitness data tools (MCP server) and can query the
+// user's actual logged data in a multi-turn conversation before answering.
 // Falls back to local keyword parser on timeout or error.
 
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { prepareClaudeCredentials } from "@/lib/claude/credentials";
+import { createFitnessServer } from "@/lib/claude/fitness-tools";
 import { parseQuery } from "@/lib/engine/keywords";
-import {
-  getLast14Days,
-  getLatestWeight,
-} from "@/lib/db/queries";
-import {
-  tdeePipeline,
-  derivedPace,
-  checkMilestones,
-} from "@/lib/engine";
-import { TARGETS } from "@/lib/engine/constants";
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
@@ -31,6 +23,16 @@ Frame forward, not backward. "A clean week from here gets you back on pace by Th
 
 Acknowledge your own limitations. Weight, body fat, sleep hours — these are slivers of a life. When you don't have strong evidence, say so plainly. Never imply that optimizing these numbers is the point of being alive. Balance is the goal, not perfection — celebrate 4 good days out of 7 over a perfect streak.
 
+TOOLS:
+
+You have access to fitness data tools. Use them to look up the user's actual logged data before answering questions about their specific situation. Don't guess — check. Available tools:
+- get_today_data: today's exercise, sleep, diet, weight, steps, HR, HRV
+- get_recent_days: day records for the last N days (trends, patterns, "this week")
+- get_weight_trend: latest weight, 7-day average, body fat, pace, milestones, targets
+- calculate_impact: engine calculation for alcohol, sleep, exercise, or diet impacts
+
+When the user asks about "today's workout" or "my week" or "how am I doing", USE THE TOOLS to get their actual data first. Ground your answer in what they actually logged, not generic assumptions.
+
 EVIDENCE PRINCIPLES:
 
 You are constrained by a deterministic engine with evidence-based modifier tables. The engine has clear tier boundaries:
@@ -40,7 +42,7 @@ You are constrained by a deterministic engine with evidence-based modifier table
 - Exercise: strength (5-8 kcal/min + 24-36h MPS boost) and running (8-12 kcal/min).
 - Cascading chains: alcohol degrades sleep quality → poor sleep increases hunger → hunger shifts diet quality. These compound, they don't just add.
 
-When a scenario falls within a tier, use the tier's data. When it falls between tiers or beyond the tables, say so — "the evidence doesn't granulate further here" — and mark any extrapolation as 🔴. Never invent graduated sub-tiers to fill gaps. Never present extrapolated numbers with moderate or high confidence.
+When a scenario falls within a tier, use the tier's data. When it falls between tiers or beyond the tables, say so — "the evidence doesn't granulate further here" — and mark any extrapolation as 🔴. Never invent graduated sub-tiers to fill gaps.
 
 Always give ranges, never point estimates. The body is complex and individual variation is real.
 
@@ -51,7 +53,7 @@ CONFIDENCE TIERS (use inline, not as a legend):
 
 VOICE:
 
-Write like you're explaining to a friend who asked a good question. Conversational prose, not structured reports. No markdown headers. No bullet-heavy layouts. Short paragraphs, natural flow. Reference the user's actual data when it's relevant — their current weight, pace, recent patterns.
+Write like you're explaining to a friend who asked a good question. Conversational prose, not structured reports. No markdown headers. No bullet-heavy layouts. Short paragraphs, natural flow.
 
 Use diet quality tiers (Sniper Mode, Dialed In, Cruise Control, Meh, Dumpster Fire) not calorie numbers. Frame impacts directionally ("could undo a few days of progress" or "meaningfully moves the trajectory forward") rather than with false precision.
 
@@ -66,78 +68,19 @@ FRAMING EXAMPLES:
 function validateResponse(response: string): string[] {
   const warnings: string[] = [];
 
-  // Check for point-estimate weight predictions (false precision)
   if (/you('ll| will) (weigh|be at) \d/i.test(response)) {
     warnings.push("Response contains weight prediction");
   }
 
-  // Check that confidence tiers are present
-  if (!/🟢|🟡|🔴/.test(response)) {
-    warnings.push("Response missing confidence tiers");
-  }
-
-  // Check for backward-looking blame language (violates philosophy)
   if (/you ruined|you blew it|you failed|that was a mistake|you shouldn't have/i.test(response)) {
     warnings.push("Response contains blame language");
   }
 
-  // Check for prescriptive "you should" framing (violates context-over-judgment)
   if (/you (should|need to|must|have to) (go to the gym|stop drinking|eat better|work out)/i.test(response)) {
     warnings.push("Response contains prescriptive language");
   }
 
   return warnings;
-}
-
-// ─── Context Assembly ────────────────────────────────────────────────────────
-
-async function assembleUserContext(): Promise<string> {
-  const [days, latestWeight] = await Promise.all([
-    getLast14Days(),
-    getLatestWeight(),
-  ]);
-
-  const currentWeight = latestWeight?.weightLbs ?? TARGETS.startWeight;
-  const pipeline = tdeePipeline(currentWeight, days);
-  const pace = derivedPace(days);
-  const milestones = checkMilestones(currentWeight);
-
-  const daysWithData = days.filter(
-    (d) => d.weightLbs || d.sleepTotalHours || d.dietScore || d.totalDrinks != null
-  );
-  const avgSleep =
-    daysWithData.filter((d) => d.sleepTotalHours).length > 0
-      ? daysWithData
-          .filter((d) => d.sleepTotalHours)
-          .reduce((s, d) => s + d.sleepTotalHours!, 0) /
-        daysWithData.filter((d) => d.sleepTotalHours).length
-      : null;
-  const avgDiet =
-    daysWithData.filter((d) => d.dietScore).length > 0
-      ? daysWithData
-          .filter((d) => d.dietScore)
-          .reduce((s, d) => s + d.dietScore!, 0) /
-        daysWithData.filter((d) => d.dietScore).length
-      : null;
-  const drinkDays = daysWithData.filter((d) => d.totalDrinks && d.totalDrinks > 0);
-  const totalDrinks = drinkDays.reduce((s, d) => s + (d.totalDrinks ?? 0), 0);
-
-  const lines: string[] = [
-    `Current weight: ${currentWeight} lbs`,
-    `BMR: ${Math.round(pipeline.bmr)} kcal | TDEE: ${Math.round(pipeline.tdee)} kcal`,
-    `Average steps: ${pipeline.avgSteps}/day`,
-    `Pace: ${pace.rate.toFixed(2)} lbs/week (${pace.confidence} confidence, ${pace.source})`,
-    `Target: ${TARGETS.wedding.weight} lbs by ${TARGETS.wedding.date}`,
-  ];
-
-  if (avgSleep != null) lines.push(`Avg sleep (14d): ${avgSleep.toFixed(1)}h`);
-  if (avgDiet != null) lines.push(`Avg diet score (14d): ${avgDiet.toFixed(1)}/5`);
-  if (drinkDays.length > 0)
-    lines.push(`Alcohol (14d): ${totalDrinks} drinks across ${drinkDays.length} days`);
-  if (milestones.length > 0)
-    lines.push(`Milestones hit: ${milestones.map((m) => m.label).join(", ")}`);
-
-  return lines.join("\n");
 }
 
 // ─── Route Handler ───────────────────────────────────────────────────────────
@@ -169,30 +112,32 @@ export async function POST(request: NextRequest) {
         "node_modules/@anthropic-ai/claude-code/cli.js"
       );
 
-      // Strip auth token overrides — let CLI use credentials file instead
       const {
         ANTHROPIC_AUTH_TOKEN: _authToken,
         ANTHROPIC_API_KEY: _apiKey,
         ...baseEnv
       } = process.env as Record<string, string>;
 
-      // Pre-compute engine analysis as a constraint for Claude
-      const engineConstraint = localResult
-        ? `\nENGINE PRE-ANALYSIS (you must not contradict this):\n${localResult.summary}\nConfidence: ${localResult.confidence}\nCategory: ${localResult.category}\n`
-        : `\nENGINE PRE-ANALYSIS: No direct match in local engine. Any physiological claims must reference the evidence tables above. Mark extrapolations beyond table boundaries as 🔴.\n`;
+      // Create in-process MCP server with fitness data tools
+      const fitnessServer = createFitnessServer();
 
       const claudeResult = await Promise.race([
         (async (): Promise<string | null> => {
           try {
-            const userContext = await assembleUserContext();
             const sdk = query({
-              prompt: `User's current data:\n${userContext}\n${engineConstraint}\nQuestion: ${trimmedQuery}`,
+              prompt: trimmedQuery,
               options: {
                 systemPrompt: SYSTEM_PROMPT,
-                maxTurns: 1,
+                maxTurns: 5,
                 abortController: controller,
                 permissionMode: "dontAsk",
                 pathToClaudeCodeExecutable: claudeBinPath,
+                mcpServers: { fitness: fitnessServer },
+                allowedTools: ["mcp__fitness__*"],
+                disallowedTools: [
+                  "Bash", "Read", "Write", "Edit", "Glob", "Grep",
+                  "Agent", "WebFetch", "WebSearch", "NotebookEdit",
+                ],
                 env: {
                   ...baseEnv,
                   HOME: creds.home,
@@ -228,7 +173,7 @@ export async function POST(request: NextRequest) {
           }
         })(),
         new Promise<null>((resolve) =>
-          setTimeout(() => { controller.abort(); resolve(null); }, 15000)
+          setTimeout(() => { controller.abort(); resolve(null); }, 30000)
         ),
       ]);
 
@@ -237,16 +182,13 @@ export async function POST(request: NextRequest) {
         if (claudeResult.includes("🟢")) confidence = "high";
         else if (claudeResult.includes("🔴")) confidence = "low";
 
-        // Post-processing validation
         const warnings = validateResponse(claudeResult);
         let finalResponse = claudeResult;
         if (warnings.length > 0) {
           console.error(
             `[impact/analyze] Validation warnings: ${warnings.join("; ")}`
           );
-          // If local engine had a result, prefer it over a suspect Claude response
-          if (localResult && warnings.some(w => w.includes("extrapolated") || w.includes("prediction"))) {
-            console.error("[impact/analyze] Falling back to local engine due to validation failure");
+          if (localResult && warnings.some(w => w.includes("prediction"))) {
             return NextResponse.json({
               response: localResult.summary,
               confidence: localResult.confidence,
