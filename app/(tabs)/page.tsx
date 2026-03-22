@@ -58,6 +58,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+  const [showBf, setShowBf] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("dashboardMetric");
+    if (saved === "bf") setShowBf(true);
+  }, []);
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -204,48 +210,43 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ── Weight + BF% Stat Cards ──────────────────────────────────────── */}
-      <div className="flex gap-3">
-        <Card className="flex-1">
-          <div className="flex flex-col items-center text-center">
-            <Label>Weight</Label>
-            <span
-              className="font-bold mt-1"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 28,
-                color: "var(--amber)",
-                textShadow: "0 0 16px rgba(245,166,35,0.3)",
-              }}
-            >
-              {data.currentWeight != null
-                ? `${data.currentWeight.toFixed(1)}`
-                : "—"}
-            </span>
-            <span className="text-t3 text-[10px] mt-0.5">
-              Target: {data.targets.bachelorParty.weight} lbs
-            </span>
-          </div>
-        </Card>
-        <Card className="flex-1">
-          <div className="flex flex-col items-center text-center">
-            <Label>Body Fat</Label>
-            <span
-              className="font-bold mt-1"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 28,
-                color: "var(--teal)",
-                textShadow: "0 0 16px rgba(6,214,160,0.3)",
-              }}
-            >
-              {displayBf != null ? `${displayBf.toFixed(1)}%` : "—"}
-            </span>
-            <span className="text-t3 text-[10px] mt-0.5">
-              Target: {data.targets.bachelorParty.bodyFat}%
-            </span>
-          </div>
-        </Card>
+      {/* ── Weight / BF% Toggle Card ──────────────────────────────────────── */}
+      <div
+        className="cursor-pointer active:scale-[0.98] transition-transform"
+        onClick={() => {
+          const next = !showBf;
+          setShowBf(next);
+          localStorage.setItem("dashboardMetric", next ? "bf" : "weight");
+        }}
+      >
+      <Card>
+        <div className="flex flex-col items-center text-center">
+          <Label>{showBf ? "Body Fat" : "Weight"}</Label>
+          <span
+            className="font-bold mt-1"
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 36,
+              color: showBf ? "var(--teal)" : "var(--amber)",
+              textShadow: showBf
+                ? "0 0 20px rgba(6,214,160,0.3)"
+                : "0 0 20px rgba(245,166,35,0.3)",
+            }}
+          >
+            {showBf
+              ? displayBf != null ? `${displayBf.toFixed(1)}%` : "—"
+              : data.weight7dSma != null ? `${data.weight7dSma.toFixed(1)}` : "—"}
+          </span>
+          <span className="text-t3 text-[10px] mt-0.5">
+            {showBf
+              ? `Target: ${data.targets.bachelorParty.bodyFat}%`
+              : `Target: ${data.targets.bachelorParty.weight} lbs · 7-day avg`}
+          </span>
+          <span className="text-t3 text-[9px] mt-1 opacity-50">
+            tap to switch
+          </span>
+        </div>
+      </Card>
       </div>
 
       {/* ── Weekly Scorecard ──────────────────────────────────────────────── */}

@@ -148,3 +148,16 @@ export const config = pgTable('config', {
   valueJson: jsonb('value_json'),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+// ─── Progress Photos ─────────────────────────────────────────────────────────
+export const photos = pgTable('photos', {
+  id: serial('id').primaryKey(),
+  date: date('date').notNull(),
+  type: text('type').notNull(),            // 'front' | 'side'
+  blobUrl: text('blob_url').notNull(),
+  blobPathname: text('blob_pathname'),
+  weightLbs: real('weight_lbs'),
+  bodyFatPct: real('body_fat_pct'),
+  analysisJson: jsonb('analysis_json'),
+  createdAt: timestamp('created_at').defaultNow(),
+});

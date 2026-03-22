@@ -7,6 +7,7 @@ import { AlcoholCard } from '@/components/log/AlcoholCard';
 import { WeightCard } from '@/components/log/WeightCard';
 import { SleepCard } from '@/components/log/SleepCard';
 import { ExerciseCard } from '@/components/log/ExerciseCard';
+import { PhotoCard } from '@/components/log/PhotoCard';
 
 /** Format today as YYYY-MM-DD using local timezone. */
 function todayLocal(): string {
@@ -42,6 +43,7 @@ export default function LogPage() {
         <WeightCard date={selectedDate} onSaved={handleSaved} />
         <SleepCard date={selectedDate} onSaved={handleSaved} />
         <ExerciseCard date={selectedDate} onSaved={handleSaved} />
+        <PhotoCard date={selectedDate} onSaved={handleSaved} />
       </div>
     </div>
   );

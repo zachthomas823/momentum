@@ -9,6 +9,7 @@ import {
   derivedPace,
   tdeePipeline,
   checkMilestones,
+  sma,
 } from "@/lib/engine";
 import type {
   PaceResult,
@@ -28,6 +29,7 @@ export interface DashboardData {
   weddingDays: number;
   currentWeight: number | null;
   currentBodyFat: number | null;
+  weight7dSma: number | null;
   pace: PaceResult;
   tdee: TdeePipelineResult;
   milestones: MilestoneResult[];
@@ -94,6 +96,10 @@ export async function GET() {
     const milestones = checkMilestones(currentWeight);
     const scorecard = computeScorecard(days);
     const nudges = detectAll(days);
+    const weight7dSma = sma(
+      days.filter((d) => d.weightLbs != null).map((d) => d.weightLbs!),
+      7
+    );
 
     const data: DashboardData = {
       days,
@@ -101,6 +107,7 @@ export async function GET() {
       weddingDays: daysTo(TARGETS.wedding.date),
       currentWeight: latestWeight?.weightLbs ?? null,
       currentBodyFat,
+      weight7dSma,
       pace,
       tdee,
       milestones,

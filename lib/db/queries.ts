@@ -13,6 +13,7 @@ import {
   dietLogs,
   alcoholLogs,
   scenarios,
+  photos,
 } from '@/lib/db/schema';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -115,9 +116,9 @@ export async function getDayRecords(
       a.steps,
       a.calories_out,
       a.active_minutes,
-      a.strength_session,
-      a.run,
-      a.walk,
+      COALESCE(am.strength_session, a.strength_session) AS strength_session,
+      COALESCE(am.run, a.run) AS run,
+      COALESCE(am.walk, a.walk) AS walk,
       h.resting_hr,
       h.hrv_rmssd,
       dl.score AS diet_score,
@@ -128,6 +129,7 @@ export async function getDayRecords(
     LEFT JOIN weight_logs w ON w.date = d.date AND w.source = 'fitbit'
     LEFT JOIN sleep_logs s ON s.date = d.date AND s.source = 'fitbit'
     LEFT JOIN activity_logs a ON a.date = d.date AND a.source = 'fitbit'
+    LEFT JOIN activity_logs am ON am.date = d.date AND am.source = 'manual'
     LEFT JOIN heart_rate_logs h ON h.date = d.date AND h.source = 'fitbit'
     LEFT JOIN diet_logs dl ON dl.date = d.date
     LEFT JOIN alcohol_logs al ON al.date = d.date
@@ -419,4 +421,45 @@ export async function deleteScenario(id: number): Promise<boolean> {
     console.error("[scenarios] delete failed:", err);
     throw err;
   }
+}
+
+// ─── Photo queries (progress photos) ─────────────────────────────────────────
+
+export async function getPhotosForDate(date: string) {
+  const db = getDb();
+  return db.select().from(photos).where(eq(photos.date, date));
+}
+
+export async function getPreviousPhoto(beforeDate: string, type: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(photos)
+    .where(and(sql`${photos.date} < ${beforeDate}`, eq(photos.type, type)))
+    .orderBy(desc(photos.date))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPhotoTimeline(limit: number = 20) {
+  const db = getDb();
+  return db
+    .select()
+    .from(photos)
+    .orderBy(desc(photos.date))
+    .limit(limit);
+}
+
+export async function insertPhoto(data: typeof photos.$inferInsert) {
+  const db = getDb();
+  const rows = await db.insert(photos).values(data).returning();
+  return rows[0];
+}
+
+export async function updatePhotoAnalysis(id: number, analysis: object) {
+  const db = getDb();
+  await db
+    .update(photos)
+    .set({ analysisJson: analysis })
+    .where(eq(photos.id, id));
 }

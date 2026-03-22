@@ -169,6 +169,15 @@ export function ema(values: number[], alpha: number = 0.15): number[] {
   return result;
 }
 
+// ─── Simple Moving Average ──────────────────────────────────────────────────
+
+/** Simple moving average over the last N data points. */
+export function sma(values: number[], window: number = 7): number | null {
+  if (values.length === 0) return null;
+  const slice = values.slice(-window);
+  return slice.reduce((a, b) => a + b, 0) / slice.length;
+}
+
 // ─── Pace Derivation ─────────────────────────────────────────────────────────
 
 /**
