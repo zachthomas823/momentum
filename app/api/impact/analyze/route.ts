@@ -107,17 +107,14 @@ export async function POST(request: NextRequest) {
     // Try local keyword parser first as potential fallback
     const localResult = parseQuery(trimmedQuery);
 
-    // Resolve credentials: prefer API key, fall back to OAuth auth token
-    // API key: standard Anthropic API (ANTHROPIC_API_KEY, sk-ant-api03-...)
-    // Auth token: Claude Max/Pro subscription via `claude setup-token` (ANTHROPIC_AUTH_TOKEN, sk-ant-oat01-...)
+    // Resolve credentials: API key required for Claude API calls.
+    // ANTHROPIC_AUTH_TOKEN (OAuth/subscription) is NOT supported by the Messages API.
+    // See: https://docs.anthropic.com — OAuth tokens return 401 "OAuth authentication is currently not supported"
     const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
-    const authToken = process.env.ANTHROPIC_AUTH_TOKEN ?? null;
-    const hasCredentials = apiKey || authToken;
-    const authMethod = apiKey ? "api_key" : "auth_token";
 
-    if (!hasCredentials) {
+    if (!apiKey) {
       console.error(
-        `[impact/analyze] No ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN — using local fallback | query="${trimmedQuery}" | latency=${Date.now() - startTime}ms`
+        `[impact/analyze] No ANTHROPIC_API_KEY — using local fallback | query="${trimmedQuery}" | latency=${Date.now() - startTime}ms`
       );
 
       if (localResult) {
@@ -133,10 +130,12 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { error: "Claude API unavailable — set ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN", fallback: true },
+        { error: "Claude API unavailable — set ANTHROPIC_API_KEY", fallback: true },
         { status: 503 }
       );
     }
+
+    const authMethod = "api_key";
 
     // ── Race: Claude API vs 3-second timeout ──────────────────────────────
 
@@ -144,12 +143,7 @@ export async function POST(request: NextRequest) {
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     const claudePromise = (async () => {
-      // Build client with whichever credential is available
-      // SDK auto-resolves: apiKey → X-Api-Key header, authToken → Authorization: Bearer header
-      const client = new Anthropic({
-        ...(apiKey ? { apiKey } : { apiKey: null }),
-        ...(authToken ? { authToken } : {}),
-      });
+      const client = new Anthropic({ apiKey });
       const userContext = await assembleUserContext();
 
       const message = await client.messages.create(

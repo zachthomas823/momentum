@@ -7,6 +7,7 @@ import type {
   FitbitBodyFatLog,
   FitbitSleepLog,
   FitbitActivitySummary,
+  FitbitActivityEntry,
   FitbitHeartRateValue,
   FitbitHRVEntry,
 } from './types';
@@ -41,6 +42,11 @@ export interface ActivityLogInsert {
   steps: number | null;
   caloriesOut: number | null;
   activeMinutes: number | null;
+  strengthSession: boolean | null;
+  strengthDuration: number | null;
+  run: boolean | null;
+  runDuration: number | null;
+  walk: boolean | null;
   source: string;
 }
 
@@ -111,21 +117,80 @@ export function normalizeSleepLogs(sleepLogs: FitbitSleepLog[]): SleepLogInsert[
   });
 }
 
+// ─── Exercise Classification ─────────────────────────────────────────────────
+
+/** Keywords that identify strength/weight training exercises from Fitbit activity names. */
+const STRENGTH_KEYWORDS = [
+  'weight', 'weights', 'strength', 'resistance', 'lifting', 'gym',
+  'workout', 'crossfit', 'circuit', 'kettlebell', 'dumbbell', 'barbell',
+  'hiit', 'bodyweight', 'calisthenics', 'pilates', 'bootcamp',
+];
+
+const RUN_KEYWORDS = ['run', 'running', 'jog', 'jogging', 'treadmill', 'sprint'];
+const WALK_KEYWORDS = ['walk', 'walking', 'hike', 'hiking'];
+
+function nameMatchesAny(name: string, keywords: string[]): boolean {
+  const lower = name.toLowerCase();
+  return keywords.some((kw) => lower.includes(kw));
+}
+
+/**
+ * Classify Fitbit exercise entries into strength/run/walk categories.
+ * Returns booleans and durations for each category.
+ */
+function classifyExercises(activities: FitbitActivityEntry[]): {
+  strengthSession: boolean;
+  strengthDuration: number | null;
+  run: boolean;
+  runDuration: number | null;
+  walk: boolean;
+} {
+  let strengthSession = false;
+  let strengthDuration: number | null = null;
+  let run = false;
+  let runDuration: number | null = null;
+  let walk = false;
+
+  for (const act of activities) {
+    const durationMin = Math.round(act.duration / 60_000);
+
+    if (nameMatchesAny(act.name, STRENGTH_KEYWORDS) || nameMatchesAny(act.activityParentName, STRENGTH_KEYWORDS)) {
+      strengthSession = true;
+      strengthDuration = (strengthDuration ?? 0) + durationMin;
+    } else if (nameMatchesAny(act.name, RUN_KEYWORDS) || nameMatchesAny(act.activityParentName, RUN_KEYWORDS)) {
+      run = true;
+      runDuration = (runDuration ?? 0) + durationMin;
+    } else if (nameMatchesAny(act.name, WALK_KEYWORDS) || nameMatchesAny(act.activityParentName, WALK_KEYWORDS)) {
+      walk = true;
+    }
+  }
+
+  return { strengthSession, strengthDuration, run, runDuration, walk };
+}
+
 // ─── Activity Logs ───────────────────────────────────────────────────────────
 
 /**
- * Normalize a single day's Fitbit activity summary.
+ * Normalize a single day's Fitbit activity summary + exercise entries.
  * active_minutes = fairlyActiveMinutes + veryActiveMinutes.
+ * Exercise classification derived from the activities array (logged/tracked/auto-detected exercises).
  */
 export function normalizeActivityLog(
   date: string,
-  summary: FitbitActivitySummary
+  summary: FitbitActivitySummary,
+  activities: FitbitActivityEntry[] = []
 ): ActivityLogInsert {
+  const classified = classifyExercises(activities);
   return {
     date,
     steps: summary.steps,
     caloriesOut: summary.caloriesOut,
     activeMinutes: summary.fairlyActiveMinutes + summary.veryActiveMinutes,
+    strengthSession: classified.strengthSession,
+    strengthDuration: classified.strengthDuration,
+    run: classified.run,
+    runDuration: classified.runDuration,
+    walk: classified.walk,
     source: 'fitbit',
   };
 }

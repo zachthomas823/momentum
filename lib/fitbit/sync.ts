@@ -199,7 +199,7 @@ export async function syncFromFitbit(): Promise<SyncResult> {
           `/1/user/-/activities/date/${day}.json`
         );
         if (actRes.summary) {
-          const row = normalizeActivityLog(day, actRes.summary);
+          const row = normalizeActivityLog(day, actRes.summary, actRes.activities ?? []);
           await db
             .insert(activityLogs)
             .values(row)
@@ -209,6 +209,11 @@ export async function syncFromFitbit(): Promise<SyncResult> {
                 steps: row.steps,
                 caloriesOut: row.caloriesOut,
                 activeMinutes: row.activeMinutes,
+                strengthSession: row.strengthSession,
+                strengthDuration: row.strengthDuration,
+                run: row.run,
+                runDuration: row.runDuration,
+                walk: row.walk,
               },
             });
           stats.activity++;

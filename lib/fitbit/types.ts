@@ -67,7 +67,21 @@ export interface FitbitActivitySummary {
   distances: Array<{ activity: string; distance: number }>;
 }
 
+export interface FitbitActivityEntry {
+  activityId: number;
+  activityParentId: number;
+  activityParentName: string;
+  name: string;
+  duration: number; // milliseconds
+  calories: number;
+  steps?: number;
+  logId: number;
+  logType: string; // 'auto_detected' | 'manual' | 'tracker' | 'mobile_run'
+  startTime: string;
+}
+
 export interface FitbitActivityResponse {
+  activities: FitbitActivityEntry[];
   summary: FitbitActivitySummary;
 }
 
