@@ -26,17 +26,19 @@ export interface KeywordResponse {
 
 const CLEAN_DAY_VALUE = 0.07; // ~0.07 lbs deficit per clean (Dialed In) day
 
-/** Convert a weekly trajectory shift [lo, hi] into a clean-days framing string. */
+/** Convert a weekly trajectory shift into bucketed directional language. */
 function toRelatableEquiv(shift: [number, number], positive: boolean): string {
-  const daysLo = Math.abs(shift[0]) / CLEAN_DAY_VALUE;
-  const daysHi = Math.abs(shift[1]) / CLEAN_DAY_VALUE;
-  const lo = Math.round(daysLo * 10) / 10;
-  const hi = Math.round(daysHi * 10) / 10;
-
+  const avg = (Math.abs(shift[0]) + Math.abs(shift[1])) / 2;
   if (positive) {
-    return `Worth about ${lo.toFixed(1)}–${hi.toFixed(1)} extra clean days of progress`;
+    if (avg > 0.1) return "A strong push in the right direction";
+    if (avg > 0.05) return "Meaningfully moves the trajectory forward";
+    return "A small positive contribution";
   }
-  return `Could offset ${lo.toFixed(1)}–${hi.toFixed(1)} clean days of progress`;
+  if (avg > 0.4) return "Could set back a full week of clean eating";
+  if (avg > 0.2) return "Could undo most of a week's discipline";
+  if (avg > 0.1) return "Could undo a few days of progress";
+  if (avg > 0.05) return "A modest setback — recoverable in a day or two";
+  return "Barely moves the needle";
 }
 
 // ─── Route Patterns ──────────────────────────────────────────────────────────
@@ -55,7 +57,58 @@ interface Route {
 
 // ── Alcohol Handler ──────────────────────────────────────────────────────────
 
-const handleAlcohol: RouteHandler = (_query, match) => {
+function alcoholTierName(count: number): string {
+  if (count <= 2) return "light (1-2)";
+  if (count <= 5) return "moderate (3-5)";
+  return "heavy (6+)";
+}
+
+const handleAlcohol: RouteHandler = (queryText, match) => {
+  // Extract ALL drink counts mentioned in the query for comparison support
+  const allMentions = [...queryText.matchAll(/(\d+)\s*(?:drink|beer|wine|cocktail|shot)/gi)].map(m => parseInt(m[1]));
+  const standaloneCounts = [...queryText.matchAll(/\b(\d+)\b/g)].map(m => parseInt(m[1])).filter(n => n >= 1 && n <= 30);
+  const drinkCounts = [...new Set([...allMentions, ...standaloneCounts])].filter(n => n >= 1 && n <= 30).sort((a, b) => a - b);
+
+  // If multiple counts detected, generate a comparison response
+  if (drinkCounts.length > 1) {
+    const mapped = drinkCounts.map(n => ({
+      count: n,
+      tier: alcoholTierName(n),
+      impact: alcoholImpact(n)!,
+    }));
+
+    // Group by tier
+    const tiers = new Map<string, { counts: number[]; impact: ReturnType<typeof alcoholImpact> }>();
+    for (const m of mapped) {
+      const existing = tiers.get(m.tier);
+      if (existing) existing.counts.push(m.count);
+      else tiers.set(m.tier, { counts: [m.count], impact: m.impact });
+    }
+
+    const parts: string[] = [];
+    const mechanismChain: string[] = [];
+    for (const [tier, { counts, impact }] of tiers) {
+      if (!impact) continue;
+      if (counts.length === 1) {
+        parts.push(`${counts[0]} drinks falls in the ${tier} tier: ${impact.summary}`);
+      } else {
+        parts.push(`${counts.join(" and ")} drinks both map to the ${tier} tier. The research doesn't distinguish between them at this level. What we know for the whole tier: fat oxidation suppressed ${impact.fatOxSuppression[0]}-${impact.fatOxSuppression[1]}% for ${impact.fatOxDuration}, recovery ${impact.recoveryHrs[0]}-${impact.recoveryHrs[1]}h.`);
+      }
+      mechanismChain.push(`${tier} tier: fat ox ${impact.fatOxSuppression[0]}-${impact.fatOxSuppression[1]}%, MPS ${impact.mpsImpact}`);
+    }
+
+    const worstImpact = mapped[mapped.length - 1].impact;
+    return {
+      summary: parts.join("\n\n"),
+      relatableEquiv: "🟢 Tier boundaries are well-established. 🔴 Differences within the 6+ tier are unmeasured.",
+      mechanismChain,
+      confidence: "high",
+      trajectoryShift: worstImpact.weeklyTrajectoryShift,
+      category: "alcohol",
+    };
+  }
+
+  // Single drink count (original behavior)
   const count = parseInt(match[1], 10);
   if (count <= 0 || count > 30) return null;
 
