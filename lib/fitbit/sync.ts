@@ -121,7 +121,10 @@ export async function syncFromFitbit(): Promise<SyncResult> {
     const end = new Date();
     let start: Date;
     if (lastCompleted.length > 0 && lastCompleted[0].completedAt) {
-      start = new Date(lastCompleted[0].completedAt);
+      // Always look back at least 7 days to catch exercise reclassification
+      const lastSync = new Date(lastCompleted[0].completedAt);
+      const sevenDaysAgo = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+      start = lastSync < sevenDaysAgo ? lastSync : sevenDaysAgo;
     } else {
       start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
