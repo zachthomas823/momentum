@@ -1,9 +1,15 @@
 // ─── POST /api/impact/analyze ────────────────────────────────────────────────
-// Handles compound "What if?" queries via Claude API with personalized context.
-// Falls back to local keyword parser on timeout (3s), error, or missing API key.
+// Handles compound "What if?" queries via Claude with personalized context.
+// Uses Claude Agent SDK (spawns claude CLI binary) with credentials from:
+//   - CLAUDE_CREDENTIALS_JSON env var (full JSON from ~/.claude/.credentials.json)
+//   - Falls back to default credentials file (local dev)
+// Falls back to local keyword parser on timeout or error.
 
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import { parseQuery } from "@/lib/engine/keywords";
 import {
   getLast14Days,
@@ -13,7 +19,6 @@ import {
   tdeePipeline,
   derivedPace,
   checkMilestones,
-  scenarioImpact,
 } from "@/lib/engine";
 import { TARGETS } from "@/lib/engine/constants";
 
@@ -46,7 +51,6 @@ async function assembleUserContext(): Promise<string> {
   const pace = derivedPace(days);
   const milestones = checkMilestones(currentWeight);
 
-  // Summarize last 14 days
   const daysWithData = days.filter(
     (d) => d.weightLbs || d.sleepTotalHours || d.dietScore || d.totalDrinks != null
   );
@@ -85,121 +89,142 @@ async function assembleUserContext(): Promise<string> {
   return lines.join("\n");
 }
 
+// ─── Credentials setup ───────────────────────────────────────────────────────
+// Returns the HOME dir to use for the subprocess. If CLAUDE_CREDENTIALS_JSON
+// is set, writes the credentials file to /tmp so the CLI can find it.
+
+function prepareCredentials(): { home: string } | null {
+  const credsJson = process.env.CLAUDE_CREDENTIALS_JSON;
+
+  if (credsJson) {
+    // Vercel / production: write credentials JSON to /tmp/.claude/.credentials.json
+    try {
+      const claudeDir = "/tmp/.claude";
+      if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, ".credentials.json"), credsJson, "utf8");
+      return { home: "/tmp" };
+    } catch (e) {
+      console.error("[impact/analyze] Failed to write credentials to /tmp:", e);
+      return null;
+    }
+  }
+
+  // Local dev: use default HOME — CLI will find ~/.claude/.credentials.json naturally
+  const defaultHome = os.homedir();
+  const localCreds = path.join(defaultHome, ".claude", ".credentials.json");
+  if (fs.existsSync(localCreds)) {
+    return { home: defaultHome };
+  }
+
+  return null;
+}
+
 // ─── Route Handler ───────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  let fallbackTriggered = false;
 
   try {
     const body = await request.json();
-    const query = body?.query;
+    const userQuery = body?.query;
 
-    if (!query || typeof query !== "string" || query.trim().length === 0) {
+    if (!userQuery || typeof userQuery !== "string" || userQuery.trim().length === 0) {
       return NextResponse.json(
         { error: "Missing or empty 'query' field" },
         { status: 400 }
       );
     }
 
-    const trimmedQuery = query.trim();
-
-    // Try local keyword parser first as potential fallback
+    const trimmedQuery = userQuery.trim();
     const localResult = parseQuery(trimmedQuery);
 
-    // Resolve credentials: API key required for Claude API calls.
-    // ANTHROPIC_AUTH_TOKEN (OAuth/subscription) is NOT supported by the Messages API.
-    // See: https://docs.anthropic.com — OAuth tokens return 401 "OAuth authentication is currently not supported"
-    const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+    const creds = prepareCredentials();
 
-    if (!apiKey) {
-      console.error(
-        `[impact/analyze] No ANTHROPIC_API_KEY — using local fallback | query="${trimmedQuery}" | latency=${Date.now() - startTime}ms`
+    if (creds) {
+      const controller = new AbortController();
+
+      const claudeBinPath = path.join(
+        process.cwd(),
+        "node_modules/@anthropic-ai/claude-code/cli.js"
       );
 
-      if (localResult) {
-        return NextResponse.json({
-          response: localResult.summary,
-          confidence: localResult.confidence,
-          fallback: true,
-          mechanismChain: localResult.mechanismChain,
-          relatableEquiv: localResult.relatableEquiv,
-          trajectoryShift: localResult.trajectoryShift,
-          category: localResult.category,
-        });
+      // Strip auth token overrides — let CLI use credentials file instead
+      const {
+        ANTHROPIC_AUTH_TOKEN: _authToken,
+        ANTHROPIC_API_KEY: _apiKey,
+        ...baseEnv
+      } = process.env as Record<string, string>;
+
+      const claudeResult = await Promise.race([
+        (async (): Promise<string | null> => {
+          try {
+            const userContext = await assembleUserContext();
+            const sdk = query({
+              prompt: `User's current data:\n${userContext}\n\nQuestion: ${trimmedQuery}`,
+              options: {
+                systemPrompt: SYSTEM_PROMPT,
+                maxTurns: 1,
+                abortController: controller,
+                permissionMode: "dontAsk",
+                pathToClaudeCodeExecutable: claudeBinPath,
+                env: {
+                  ...baseEnv,
+                  HOME: creds.home,
+                },
+              },
+            });
+
+            let responseText = "";
+            for await (const msg of sdk) {
+              if (msg.type === "result") {
+                if (msg.subtype === "success") {
+                  responseText = msg.result;
+                } else {
+                  console.error(
+                    `[impact/analyze] Agent SDK result error | subtype=${msg.subtype} | errors=${JSON.stringify(msg.errors)}`
+                  );
+                }
+                break;
+              }
+              if (msg.type === "assistant") {
+                if (msg.error) {
+                  console.error(`[impact/analyze] Assistant message error: ${msg.error}`);
+                } else {
+                  const textBlock = msg.message.content.find((b) => b.type === "text");
+                  if (textBlock?.type === "text") responseText = textBlock.text;
+                }
+              }
+            }
+            return responseText || null;
+          } catch (e) {
+            console.error("[impact/analyze] Agent SDK error:", e);
+            return null;
+          }
+        })(),
+        new Promise<null>((resolve) =>
+          setTimeout(() => { controller.abort(); resolve(null); }, 15000)
+        ),
+      ]);
+
+      if (claudeResult) {
+        let confidence = "mod";
+        if (claudeResult.includes("🟢")) confidence = "high";
+        else if (claudeResult.includes("🔴")) confidence = "low";
+
+        console.error(
+          `[impact/analyze] Agent SDK success | query="${trimmedQuery}" | latency=${Date.now() - startTime}ms`
+        );
+        return NextResponse.json({ response: claudeResult, confidence, fallback: false });
       }
 
-      return NextResponse.json(
-        { error: "Claude API unavailable — set ANTHROPIC_API_KEY", fallback: true },
-        { status: 503 }
-      );
-    }
-
-    const authMethod = "api_key";
-
-    // ── Race: Claude API vs 3-second timeout ──────────────────────────────
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-    const claudePromise = (async () => {
-      const client = new Anthropic({ apiKey });
-      const userContext = await assembleUserContext();
-
-      const message = await client.messages.create(
-        {
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          system: SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: `User's current data:\n${userContext}\n\nQuestion: ${trimmedQuery}`,
-            },
-          ],
-        },
-        { signal: controller.signal }
-      );
-
-      clearTimeout(timeoutId);
-
-      const textBlock = message.content.find((b) => b.type === "text");
-      const responseText = textBlock?.text ?? "";
-
-      // Determine confidence from response content
-      let confidence = "mod";
-      if (responseText.includes("🟢")) confidence = "high";
-      else if (responseText.includes("🔴")) confidence = "low";
-
-      return {
-        response: responseText,
-        confidence,
-        fallback: false,
-      };
-    })();
-
-    const timeoutPromise = new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), 3000);
-    });
-
-    const result = await Promise.race([claudePromise, timeoutPromise]);
-
-    if (result) {
-      // Claude responded in time
-      const latency = Date.now() - startTime;
       console.error(
-        `[impact/analyze] Claude success | auth=${authMethod} | query="${trimmedQuery}" | latency=${latency}ms | fallback=false`
+        `[impact/analyze] Agent SDK failed/timeout | query="${trimmedQuery}" | latency=${Date.now() - startTime}ms`
       );
-      return NextResponse.json(result);
+    } else {
+      console.error(
+        `[impact/analyze] No credentials available — using local fallback | latency=${Date.now() - startTime}ms`
+      );
     }
-
-    // ── Timeout: fall back to local parser ──────────────────────────────
-    controller.abort();
-    fallbackTriggered = true;
-    const latency = Date.now() - startTime;
-    console.error(
-      `[impact/analyze] Claude timeout — using local fallback | query="${trimmedQuery}" | latency=${latency}ms | fallback=true`
-    );
 
     if (localResult) {
       return NextResponse.json({
@@ -213,21 +238,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Both Claude and local parser failed
     return NextResponse.json(
-      {
-        error: "Unable to analyze query — Claude timed out and no local handler matched",
-        fallback: true,
-      },
-      { status: 504 }
+      { error: "Unable to analyze query — Claude unavailable and no local handler matched", fallback: true },
+      { status: 503 }
     );
   } catch (err) {
-    const latency = Date.now() - startTime;
     console.error(
-      `[impact/analyze] Error | latency=${latency}ms | fallback=${fallbackTriggered} |`,
+      `[impact/analyze] Error | latency=${Date.now() - startTime}ms |`,
       err
     );
-
     return NextResponse.json(
       { error: "Internal server error", fallback: true },
       { status: 500 }
