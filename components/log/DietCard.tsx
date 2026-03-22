@@ -56,8 +56,11 @@ export function DietCard({ date, onSaved }: DietCardProps) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const hasMealContent = Object.values(meals).some((v) => v.trim().length > 0);
+  const canSave = mode === 'vibes' ? score != null : hasMealContent;
+
   const handleSave = async () => {
-    if (score == null) return;
+    if (!canSave) return;
     setSaving(true);
     try {
       await fetch('/api/logs/diet', {
@@ -66,7 +69,7 @@ export function DietCard({ date, onSaved }: DietCardProps) {
         body: JSON.stringify({
           date,
           mode,
-          score,
+          score: score ?? 3, // default to "Cruise Control" if no score set
           mealsJson: mode === 'meals' ? meals : null,
         }),
       });
@@ -160,7 +163,7 @@ export function DietCard({ date, onSaved }: DietCardProps) {
       <Btn
         full
         onClick={handleSave}
-        disabled={saving || score == null}
+        disabled={saving || !canSave}
         color={justSaved ? 'var(--teal)' : 'var(--amber)'}
       >
         {btnLabel}
