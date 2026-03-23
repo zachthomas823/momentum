@@ -26,6 +26,7 @@ export default function ProgressPage() {
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [compareIdx, setCompareIdx] = useState(0);
 
   const fetchPhotos = useCallback(async () => {
@@ -43,6 +44,18 @@ export default function ProgressPage() {
   }, []);
 
   useEffect(() => { fetchPhotos(); }, [fetchPhotos]);
+
+  const handleDelete = async (photoId: number) => {
+    setDeleting(photoId);
+    try {
+      const res = await fetch(`/api/photos?id=${photoId}`, { method: 'DELETE' });
+      if (res.ok) await fetchPhotos();
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const handleAnalyze = async (photoId: number) => {
     setAnalyzing(photoId);
@@ -176,7 +189,7 @@ export default function ProgressPage() {
                     </div>
 
                     {/* Analysis */}
-                    {current.analysisJson?.text ? (
+                    {current.analysisJson?.text && (
                       <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-2 block">
                           Claude Analysis
@@ -185,17 +198,16 @@ export default function ProgressPage() {
                           {current.analysisJson.text}
                         </p>
                       </div>
-                    ) : (
-                      <Btn
-                        full
-                        onClick={() => handleAnalyze(current.id)}
-                        disabled={analyzing === current.id}
-                        color="var(--teal)"
-                        className="mt-3"
-                      >
-                        {analyzing === current.id ? 'Analyzing...' : 'Analyze Changes with Claude'}
-                      </Btn>
                     )}
+                    <Btn
+                      full
+                      onClick={() => handleAnalyze(current.id)}
+                      disabled={analyzing === current.id}
+                      color="var(--teal)"
+                      className="mt-3"
+                    >
+                      {analyzing === current.id ? 'Analyzing...' : current.analysisJson?.text ? 'Re-analyze' : 'Analyze Changes with Claude'}
+                    </Btn>
                   </div>
                 );
               })()}
@@ -220,7 +232,7 @@ export default function ProgressPage() {
                   <span className="text-xs font-bold" style={{ color: 'var(--amber)' }}>
                     {formatDate(date)}
                   </span>
-                  <div className="flex gap-2 text-[10px] text-t3">
+                  <div className="flex items-center gap-2 text-[10px] text-t3">
                     {weight && <span>{weight} lbs</span>}
                     {bf && <span>{bf}%</span>}
                   </div>
@@ -228,18 +240,36 @@ export default function ProgressPage() {
 
                 <div className="flex gap-2">
                   {front && (
-                    <img
-                      src={front.downloadUrl ?? front.blobUrl}
-                      alt="Front"
-                      className="flex-1 aspect-[3/4] object-cover rounded-lg border border-white/10"
-                    />
+                    <div className="flex-1 relative">
+                      <img
+                        src={front.downloadUrl ?? front.blobUrl}
+                        alt="Front"
+                        className="w-full aspect-[3/4] object-cover rounded-lg border border-white/10"
+                      />
+                      <button
+                        onClick={() => handleDelete(front.id)}
+                        disabled={deleting === front.id}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-[10px] text-t3 cursor-pointer hover:text-rose transition-colors"
+                      >
+                        {deleting === front.id ? '…' : '✕'}
+                      </button>
+                    </div>
                   )}
                   {side && (
-                    <img
-                      src={side.downloadUrl ?? side.blobUrl}
-                      alt="Side"
-                      className="flex-1 aspect-[3/4] object-cover rounded-lg border border-white/10"
-                    />
+                    <div className="flex-1 relative">
+                      <img
+                        src={side.downloadUrl ?? side.blobUrl}
+                        alt="Side"
+                        className="w-full aspect-[3/4] object-cover rounded-lg border border-white/10"
+                      />
+                      <button
+                        onClick={() => handleDelete(side.id)}
+                        disabled={deleting === side.id}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-[10px] text-t3 cursor-pointer hover:text-rose transition-colors"
+                      >
+                        {deleting === side.id ? '…' : '✕'}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -251,17 +281,15 @@ export default function ProgressPage() {
                   </div>
                 )}
 
-                {!analysis?.text && dayPhotos.length > 0 && (
-                  <Btn
-                    full
-                    onClick={() => handleAnalyze(dayPhotos[0].id)}
-                    disabled={analyzing === dayPhotos[0].id}
-                    color="var(--teal)"
-                    className="mt-2"
-                  >
-                    {analyzing === dayPhotos[0].id ? 'Analyzing...' : 'Analyze with Claude'}
-                  </Btn>
-                )}
+                <Btn
+                  full
+                  onClick={() => handleAnalyze(dayPhotos[0].id)}
+                  disabled={analyzing === dayPhotos[0].id}
+                  color="var(--teal)"
+                  className="mt-2"
+                >
+                  {analyzing === dayPhotos[0].id ? 'Analyzing...' : analysis?.text ? 'Re-analyze' : 'Analyze with Claude'}
+                </Btn>
               </Card>
             );
           })}

@@ -1,12 +1,14 @@
 // ─── Photo upload & listing API ──────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import {
   getPhotosForDate,
   getPhotoTimeline,
   insertPhoto,
   getLatestWeight,
+  getPhotoById,
+  deletePhoto,
 } from "@/lib/db/queries";
 
 /** Generate proxy URLs for private blob photos. */
@@ -98,6 +100,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...record, downloadUrl });
   } catch (err) {
     console.error("[photos] Upload error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const id = parseInt(req.nextUrl.searchParams.get("id") ?? "", 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "id param required" }, { status: 400 });
+    }
+
+    // Get the photo record to find blob URL
+    const photo = await getPhotoById(id);
+    if (!photo) {
+      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+    }
+
+    // Delete from blob storage
+    try {
+      await del(photo.blobUrl);
+    } catch {
+      // Non-fatal — blob may already be gone
+    }
+
+    // Delete from DB
+    await deletePhoto(id);
+    return NextResponse.json({ success: true });
+  } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }

@@ -463,3 +463,15 @@ export async function updatePhotoAnalysis(id: number, analysis: object) {
     .set({ analysisJson: analysis })
     .where(eq(photos.id, id));
 }
+
+export async function getPhotoById(id: number) {
+  const db = getDb();
+  const rows = await db.select().from(photos).where(eq(photos.id, id));
+  return rows[0] ?? null;
+}
+
+export async function deletePhoto(id: number): Promise<boolean> {
+  const db = getDb();
+  const result = await db.delete(photos).where(eq(photos.id, id)).returning();
+  return result.length > 0;
+}
