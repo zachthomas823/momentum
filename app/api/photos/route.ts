@@ -1,7 +1,7 @@
 // ─── Photo upload & listing API ──────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { put, getDownloadUrl } from "@vercel/blob";
+import { put } from "@vercel/blob";
 import {
   getPhotosForDate,
   getPhotoTimeline,
@@ -9,20 +9,14 @@ import {
   getLatestWeight,
 } from "@/lib/db/queries";
 
-/** Generate signed download URLs for private blob photos. */
-async function withDownloadUrls<T extends { blobUrl: string }>(
+/** Generate proxy URLs for private blob photos. */
+function withProxyUrls<T extends { blobUrl: string }>(
   photos: T[]
-): Promise<(T & { downloadUrl: string })[]> {
-  return Promise.all(
-    photos.map(async (p) => {
-      try {
-        const downloadUrl = await getDownloadUrl(p.blobUrl);
-        return { ...p, downloadUrl };
-      } catch {
-        return { ...p, downloadUrl: p.blobUrl };
-      }
-    })
-  );
+): (T & { downloadUrl: string })[] {
+  return photos.map((p) => ({
+    ...p,
+    downloadUrl: `/api/photos/serve?url=${encodeURIComponent(p.blobUrl)}`,
+  }));
 }
 
 export async function GET(req: NextRequest) {
@@ -33,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (timeline === "true") {
       const limit = parseInt(req.nextUrl.searchParams.get("limit") ?? "20", 10);
       const photos = await getPhotoTimeline(limit);
-      return NextResponse.json(await withDownloadUrls(photos));
+      return NextResponse.json(withProxyUrls(photos));
     }
 
     if (!date) {
@@ -44,7 +38,7 @@ export async function GET(req: NextRequest) {
     }
 
     const photos = await getPhotosForDate(date);
-    return NextResponse.json(await withDownloadUrls(photos));
+    return NextResponse.json(withProxyUrls(photos));
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
@@ -99,8 +93,8 @@ export async function POST(req: NextRequest) {
       bodyFatPct,
     });
 
-    // Return with signed download URL
-    const downloadUrl = await getDownloadUrl(blob.url);
+    // Return with proxy URL
+    const downloadUrl = `/api/photos/serve?url=${encodeURIComponent(blob.url)}`;
     return NextResponse.json({ ...record, downloadUrl });
   } catch (err) {
     console.error("[photos] Upload error:", err);
