@@ -254,7 +254,7 @@ export default function SettingsPage() {
         <div className="mt-3 flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <span className="text-sm" style={{ color: 'var(--t1)' }}>
-              Decision-Impact Fitness Tracker
+              Momentum
             </span>
             <span
               className="text-xs px-2 py-0.5 rounded-full"

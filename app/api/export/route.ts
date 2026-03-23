@@ -79,7 +79,7 @@ export async function GET() {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="fitness-tracker-export-${today}.json"`,
+        'Content-Disposition': `attachment; filename="momentum-export-${today}.json"`,
       },
     });
   } catch (err) {

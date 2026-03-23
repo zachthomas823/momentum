@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Decision-Impact Fitness Tracker",
-    short_name: "Fitness Tracker",
+    name: "Momentum",
+    short_name: "Momentum",
     start_url: "/",
     display: "standalone",
     background_color: "#0d1117",

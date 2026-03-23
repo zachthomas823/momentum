@@ -20,9 +20,9 @@ const dmSans = DM_Sans({
 import type { Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Decision-Impact Fitness Tracker",
+  title: "Momentum",
   description:
-    "Track how lifestyle decisions cascade into body composition changes",
+    "See how your decisions build or break momentum toward your goals",
 };
 
 export const viewport: Viewport = {
