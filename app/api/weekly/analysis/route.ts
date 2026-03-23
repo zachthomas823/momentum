@@ -11,33 +11,40 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { prepareClaudeCredentials } from "@/lib/claude/credentials";
 import { createFitnessServer } from "@/lib/claude/fitness-tools";
 
-const ANALYSIS_PROMPT = `You are a body composition coach doing a between-rounds debrief. You have access to the user's fitness data tools — use them to pull the last 30 days of data and the current weight trend before writing your analysis.
+const ANALYSIS_PROMPT = `You are a body composition coach doing a between-rounds debrief. Use the fitness data tools to pull the last 30 days of data and the current weight trend before writing your analysis.
 
-STRUCTURE your analysis in exactly this order:
+Respond with ONLY valid JSON — no markdown, no code fences. Use this exact structure:
 
-1. WHAT MOVED THE NEEDLE — Name the 2-3 specific decisions or patterns from recent days that had the most impact on trajectory. Be concrete: "3 strength sessions this week" not "good exercise habits." Reference actual dates and data points.
+{
+  "insights": [
+    { "icon": "ICON_KEY", "title": "Short title", "body": "1-2 sentence explanation with real numbers" }
+  ],
+  "quietWin": { "icon": "ICON_KEY", "body": "One thing quietly helping, with data" },
+  "oneThing": { "icon": "ICON_KEY", "body": "Single highest-leverage action for next week" },
+  "momentum": { "status": "building|holding|fading", "body": "One sentence on where the user stands" }
+}
 
-2. WHAT'S QUIETLY WORKING — One thing the user might not notice that's helping. Sleep consistency, step count, dry streaks — the unglamorous stuff that compounds.
-
-3. THE ONE THING — The single highest-leverage change or continuation for the next week. Not a list of improvements. One thing. Make it specific and actionable.
-
-4. MOMENTUM READ — One sentence. Is momentum building, holding, or fading? Where does the user stand relative to their targets?
+ICON KEYS (choose the most fitting for each insight):
+- "gym" — strength training, lifting, workout sessions
+- "run" — cardio, running, walking, steps
+- "sleep" — sleep quality, rest, recovery
+- "food" — diet, meals, nutrition, logging
+- "drinks" — alcohol, dry streaks
+- "scale" — weight changes, body fat, trends
+- "fire" — intensity, hot streak, big effort
+- "target" — pace, goals, targets, trajectory
+- "warning" — risks, gaps, stalls, patterns to watch
+- "heart" — heart rate, HRV, cardiovascular
+- "clock" — time-based patterns, consistency, streaks
+- "trophy" — milestones, achievements, personal bests
 
 RULES:
-- Pull the last 30 days of data but weight your analysis toward the most recent 7-10 days. Mention older events only if they're significant (a plateau breaking, a pattern shifting).
-- Use actual numbers from the data. "Sleep averaging 8.1h" not "good sleep."
-- No markdown headers. No bullet lists. Write in short, punchy paragraphs.
-- Don't moralize about bad days. If they drank or skipped the gym, frame it in terms of what it cost and how fast they recovered — not whether it was right or wrong.
-- Confidence tiers only if making a physiological claim. This is mostly observational, not predictive.
-- Keep it under 200 words. Every sentence should earn its place.
-- End with momentum, not advice.
-
-FRAMING EXAMPLES:
-✓ "The Friday drinks barely registered — you kept it to 3 and recovered by Monday."
-✓ "No diet logging since Wednesday. When you stop logging, the trajectory flattens — you saw this in February."
-✓ "Momentum: solid. Keep the gym cadence and you're ahead of pace into April."
-✗ "You should try to drink less on weekends."
-✗ "Great job this week! Keep up the good work!"`;
+- Include 2-3 insights in the insights array. Each one is a specific, data-grounded observation about a recent impactful decision or pattern.
+- Be concrete: "3 strength sessions this week" not "good exercise habits." Reference actual numbers.
+- Each body text should be 1-2 sentences max. Punchy, direct.
+- Don't moralize. Frame costs and recovery, not blame.
+- The oneThing must be ONE specific action, not a list.
+- momentum.status must be exactly "building", "holding", or "fading".`;
 
 import { todayLocal } from "@/lib/date-utils";
 
@@ -121,8 +128,19 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (result) {
+      // Try to parse as structured JSON, fall back to raw text
+      let parsed;
+      try {
+        // Strip markdown code fences if Claude wrapped it
+        const cleaned = result.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim();
+        parsed = JSON.parse(cleaned);
+      } catch {
+        // If JSON parsing fails, return as raw text for backward compatibility
+        parsed = { analysis: result };
+      }
+
       const entry = {
-        analysis: result,
+        ...parsed,
         generatedAt: new Date().toISOString(),
       };
       cache.set(today, entry);

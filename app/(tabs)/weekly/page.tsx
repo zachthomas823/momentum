@@ -218,6 +218,152 @@ function LoadingSkeleton() {
   );
 }
 
+// ─── Icon Map ────────────────────────────────────────────────────────────────
+
+const ICONS: Record<string, string> = {
+  gym: "🏋️",
+  run: "🏃",
+  sleep: "😴",
+  food: "🍽️",
+  drinks: "🍷",
+  scale: "⚖️",
+  fire: "🔥",
+  target: "🎯",
+  warning: "⚠️",
+  heart: "❤️",
+  clock: "⏱️",
+  trophy: "🏆",
+};
+
+const MOMENTUM_COLORS: Record<string, string> = {
+  building: "var(--teal)",
+  holding: "var(--amber)",
+  fading: "var(--rose)",
+};
+
+// ─── Momentum Card ───────────────────────────────────────────────────────────
+
+interface AnalysisInsight { icon: string; title: string; body: string }
+interface AnalysisData {
+  insights?: AnalysisInsight[];
+  quietWin?: { icon: string; body: string };
+  oneThing?: { icon: string; body: string };
+  momentum?: { status: string; body: string };
+  analysis?: string;
+}
+
+function MomentumCard({
+  data,
+  loading,
+  refreshing,
+  onRefresh,
+}: {
+  data: AnalysisData | null;
+  loading: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const hasStructured = data?.insights && data.insights.length > 0;
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <Label>Momentum</Label>
+        {data && (
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="text-[10px] text-t3 px-2 py-1 rounded-lg bg-white/5 border border-white/10 cursor-pointer disabled:opacity-50"
+          >
+            {refreshing ? "..." : "Refresh"}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="animate-pulse space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="w-8 h-8 bg-white/[0.06] rounded-lg shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-white/[0.06] rounded w-1/3" />
+                <div className="h-3 bg-white/[0.06] rounded w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : hasStructured ? (
+        <div className="space-y-4">
+          {/* Insights */}
+          {data.insights!.map((insight, i) => (
+            <div key={i} className="flex gap-3 items-start">
+              <span className="text-lg shrink-0 mt-0.5">{ICONS[insight.icon] ?? "💡"}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold" style={{ color: "var(--amber)" }}>
+                  {insight.title}
+                </div>
+                <p className="text-[12px] leading-relaxed text-t2 mt-0.5">{insight.body}</p>
+              </div>
+            </div>
+          ))}
+
+          {/* Quiet Win */}
+          {data.quietWin && (
+            <div className="flex gap-3 items-start pt-2 border-t border-white/[0.06]">
+              <span className="text-lg shrink-0 mt-0.5">{ICONS[data.quietWin.icon] ?? "✨"}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-t3">Quietly Working</div>
+                <p className="text-[12px] leading-relaxed text-t2 mt-0.5">{data.quietWin.body}</p>
+              </div>
+            </div>
+          )}
+
+          {/* The One Thing */}
+          {data.oneThing && (
+            <div className="flex gap-3 items-start pt-2 border-t border-white/[0.06]">
+              <span className="text-lg shrink-0 mt-0.5">{ICONS[data.oneThing.icon] ?? "🎯"}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-t3">The One Thing</div>
+                <p className="text-[12px] leading-relaxed text-t1 mt-0.5 font-medium">{data.oneThing.body}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Momentum Status */}
+          {data.momentum && (
+            <div
+              className="mt-1 p-3 rounded-xl text-center"
+              style={{
+                background: `${MOMENTUM_COLORS[data.momentum.status] ?? "var(--amber)"}10`,
+                border: `1px solid ${MOMENTUM_COLORS[data.momentum.status] ?? "var(--amber)"}30`,
+              }}
+            >
+              <p
+                className="text-[12px] font-semibold"
+                style={{ color: MOMENTUM_COLORS[data.momentum.status] ?? "var(--amber)" }}
+              >
+                {data.momentum.body}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : data?.analysis ? (
+        // Fallback: raw text
+        <p className="text-[13px] leading-[1.7] whitespace-pre-wrap" style={{ color: "var(--t1)" }}>
+          {data.analysis}
+        </p>
+      ) : (
+        <div className="text-center py-4">
+          <p className="text-xs text-t3 mb-3">Analysis couldn&apos;t be generated right now</p>
+          <Btn onClick={onRefresh} disabled={refreshing} className="text-xs">
+            {refreshing ? "Generating..." : "Generate Analysis"}
+          </Btn>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function WeeklyPage() {
@@ -226,7 +372,7 @@ export default function WeeklyPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Momentum analysis state
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisRefreshing, setAnalysisRefreshing] = useState(false);
 
@@ -237,7 +383,7 @@ export default function WeeklyPage() {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (data.analysis) setAnalysis(data.analysis);
+        setAnalysisData(data);
       }
     } catch {
       // non-fatal
@@ -283,47 +429,12 @@ export default function WeeklyPage() {
   return (
     <div className="space-y-4 mt-8">
       {/* ── Momentum Analysis ──────────────────────────────────────────── */}
-      <Card>
-        <div className="flex items-center justify-between mb-3">
-          <Label>Momentum</Label>
-          {analysis && (
-            <button
-              onClick={() => fetchAnalysis(true)}
-              disabled={analysisRefreshing}
-              className="text-[10px] text-t3 px-2 py-1 rounded-lg bg-white/5 border border-white/10 cursor-pointer disabled:opacity-50"
-            >
-              {analysisRefreshing ? "..." : "Refresh"}
-            </button>
-          )}
-        </div>
-        {analysisLoading ? (
-          <div className="animate-pulse space-y-2">
-            <div className="h-3 bg-white/[0.06] rounded w-full" />
-            <div className="h-3 bg-white/[0.06] rounded w-5/6" />
-            <div className="h-3 bg-white/[0.06] rounded w-4/6" />
-            <div className="h-3 bg-white/[0.06] rounded w-full" />
-            <div className="h-3 bg-white/[0.06] rounded w-3/4" />
-          </div>
-        ) : analysis ? (
-          <p
-            className="text-[13px] leading-[1.7] whitespace-pre-wrap"
-            style={{ color: "var(--t1)" }}
-          >
-            {analysis}
-          </p>
-        ) : (
-          <div className="text-center py-4">
-            <p className="text-xs text-t3 mb-3">Analysis couldn&apos;t be generated right now</p>
-            <Btn
-              onClick={() => fetchAnalysis(true)}
-              disabled={analysisRefreshing}
-              className="text-xs"
-            >
-              {analysisRefreshing ? "Generating..." : "Generate Analysis"}
-            </Btn>
-          </div>
-        )}
-      </Card>
+      <MomentumCard
+        data={analysisData}
+        loading={analysisLoading}
+        refreshing={analysisRefreshing}
+        onRefresh={() => fetchAnalysis(true)}
+      />
 
       {/* Week-over-Week Stats */}
       <Card>
