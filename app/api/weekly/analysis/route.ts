@@ -39,18 +39,15 @@ FRAMING EXAMPLES:
 ✗ "You should try to drink less on weekends."
 ✗ "Great job this week! Keep up the good work!"`;
 
+import { todayLocal } from "@/lib/date-utils";
+
 // Simple daily cache (survives within a single serverless instance)
 const cache = new Map<string, { analysis: string; generatedAt: string }>();
-
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
   const refresh = req.nextUrl.searchParams.get("refresh") === "true";
-  const today = todayKey();
+  const today = todayLocal();
 
   // Return cached if available and not refreshing
   if (!refresh && cache.has(today)) {

@@ -77,13 +77,14 @@ function computeScorecard(days: DayRecord[]) {
 
 export async function GET() {
   try {
-    // Date range: last 30 days using local date math
-    const today = new Date();
-    const start = new Date(today);
+    // Date range: last 30 days using user's local timezone
+    const { todayLocal: getTodayLocal } = await import("@/lib/date-utils");
+    const todayStr = getTodayLocal();
+    const start = new Date(todayStr + "T12:00:00");
     start.setDate(start.getDate() - 29); // 30 days inclusive
 
     const [days, latestWeight] = await Promise.all([
-      getDayRecords(localDateStr(start), localDateStr(today)),
+      getDayRecords(localDateStr(start), todayStr),
       getLatestWeight(),
     ]);
 

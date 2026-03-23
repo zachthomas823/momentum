@@ -64,8 +64,9 @@ export const DRINKS = ["Beer", "Wine", "Liquor", "Cocktail"] as const;
  * Never uses toISOString() — always local midnight.
  */
 export function daysTo(dateStr: string): number {
-  const target = new Date(dateStr + "T00:00:00");
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr + "T12:00:00");
+  // Use user's timezone for "today"
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  const today = new Date(todayStr + "T12:00:00");
   return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
 }

@@ -22,9 +22,7 @@ import {
 } from "@/lib/engine";
 import { TARGETS } from "@/lib/engine/constants";
 
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { todayLocal, formatDateLocal } from "@/lib/date-utils";
 
 export function createFitnessServer() {
   return createSdkMcpServer({
@@ -36,7 +34,7 @@ export function createFitnessServer() {
         "Get all logged data for today: exercise (type, duration), sleep (hours, stages), diet (score, mode), weight, body fat, steps, active minutes, heart rate, HRV. Use this when the user asks about 'today' or 'my workout' or 'this morning'.",
         {},
         async () => {
-          const today = localDateStr(new Date());
+          const today = todayLocal();
           const dayLog = await getDayLog(today);
           return {
             content: [{ type: "text" as const, text: JSON.stringify(dayLog, null, 2) }],
@@ -55,7 +53,7 @@ export function createFitnessServer() {
           const end = new Date();
           const start = new Date(end);
           start.setDate(start.getDate() - (days - 1));
-          const records = await getDayRecords(localDateStr(start), localDateStr(end));
+          const records = await getDayRecords(formatDateLocal(start), formatDateLocal(end));
           return {
             content: [{ type: "text" as const, text: JSON.stringify(records, null, 2) }],
           };
@@ -72,7 +70,7 @@ export function createFitnessServer() {
           const start = new Date(end);
           start.setDate(start.getDate() - 29);
           const [days, latestWeight] = await Promise.all([
-            getDayRecords(localDateStr(start), localDateStr(end)),
+            getDayRecords(formatDateLocal(start), formatDateLocal(end)),
             getLatestWeight(),
           ]);
 

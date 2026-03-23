@@ -133,7 +133,8 @@ function computeStats(days: DayRecord[]): Omit<StatRow, "delta" | "previous">[] 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const weekOf = searchParams.get("weekOf") ?? localDateStr(new Date());
+    const { todayLocal: getTodayLocal } = await import("@/lib/date-utils");
+    const weekOf = searchParams.get("weekOf") ?? getTodayLocal();
 
     // Current and previous week boundaries
     const current = weekBounds(weekOf);
