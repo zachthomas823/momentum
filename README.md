@@ -1,8 +1,8 @@
-# Decision-Impact Fitness Tracker
+# Momentum
 
-A mobile-first web app that models how individual lifestyle decisions cascade into body composition changes over time. Built for one user (Zach) targeting a wedding on Sept 5, 2026.
+A mobile-first web app that shows how lifestyle decisions build or break momentum toward body composition goals. Built for one user (Zach) targeting a wedding on Sept 5, 2026.
 
-Not a calorie counter. An informed-choice tool with a cascading impact engine.
+Not a calorie counter. A decision-impact tool with a cascading engine.
 
 > You are a whole, complicated, weird person. We give you the context to live your life the way you want to, not to judge.
 
@@ -12,16 +12,18 @@ Not a calorie counter. An informed-choice tool with a cascading impact engine.
 - **See the trajectory** — Organic canvas-rendered river band showing your EMA-smoothed weight trend flowing toward target dates (Bachelor Party Aug 20, Wedding Sep 5). Decision markers show where choices bent the curve.
 - **Ask "What if?"** — 4 preset head-to-head comparisons + free-text queries. Local keyword engine for instant responses, Claude API for compound scenarios. Cascading chains (alcohol→sleep→hunger→balance), not parallel sums.
 - **Get nudged** — 8 behavioral pattern detectors surface the top 3 insights on your dashboard (weekend alcohol concentration, training gaps, diet drop-off, sleep trends, plateaus, etc.).
-- **Track weekly** — Week-over-week stat deltas, day-by-day breakdown, logging consistency score.
+- **Track weekly** — Week-over-week stat deltas, day-by-day breakdown, logging consistency score, AI-generated momentum analysis.
+- **Progress photos** — Front/side check-in photos stored in Vercel Blob with Claude vision analysis comparing changes over time.
 
 ## Tech Stack
 
 | Layer | Tech |
 |-------|------|
 | Framework | Next.js 16 (App Router) + TypeScript |
-| Database | Neon serverless Postgres (Drizzle ORM, 9 tables) |
+| Database | Neon serverless Postgres (Drizzle ORM, 10 tables) |
 | Health Data | Fitbit Web API (OAuth 2.0 PKCE) |
-| AI | Claude API (compound scenario analysis, backend-only) |
+| AI | Claude Agent SDK with MCP tools (multi-turn data queries + vision) |
+| Photo Storage | Vercel Blob (private) |
 | Styling | Tailwind CSS v4, dark palette, Outfit + DM Sans |
 | Deployment | Vercel |
 | Mobile | PWA (service worker + IndexedDB offline queue) |
@@ -47,7 +49,8 @@ Create `.env.local`:
 DATABASE_URL=postgresql://...
 FITBIT_CLIENT_ID=...
 FITBIT_CLIENT_SECRET=...
-ANTHROPIC_API_KEY=...          # optional
+ANTHROPIC_API_KEY=...          # optional — for production Claude access
+BLOB_READ_WRITE_TOKEN=...     # optional — for progress photo uploads
 ```
 
 Push the database schema:
@@ -73,7 +76,9 @@ Client (5 tabs)          API Routes (14)         External
 │ Impact       │───→│ /api/impact/*    │───→│ Postgres │
 │ Log (5 types)│───→│ /api/logs/*      │    └──────────┘
 │ Weekly       │───→│ /api/weekly      │    ┌──────────┐
-│ Settings     │───→│ /api/fitbit/*    │───→│ Fitbit   │
+│ Progress     │───→│ /api/photos/*    │───→│ Vercel   │
+│ Settings     │───→│ /api/fitbit/*    │───→│ Blob     │
+│              │    │                  │    │ Fitbit   │
 └──────────────┘    │ /api/export      │    │ API      │
                     └──────────────────┘    └──────────┘
                            │                ┌──────────┐
@@ -85,7 +90,7 @@ Client (5 tabs)          API Routes (14)         External
 **Three-layer intelligence:**
 1. **Layer 1:** Deterministic energy balance — BMR, TDEE, deficit math (pure functions)
 2. **Layer 2:** Body composition modeling — cascading impact chains with [lo, hi] ranges (pure functions)
-3. **Layer 3:** Claude API — compound scenario analysis with 3s timeout and local fallback
+3. **Layer 3:** Claude Agent SDK with MCP fitness tools — multi-turn data queries, vision-based photo analysis, momentum reports. Local keyword parser as offline fallback.
 
 **Fat server, thin client:** API routes compute all state. Client components fetch and render.
 
