@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Btn } from '@/components/ui/Btn';
 import { Label } from '@/components/ui/Label';
 import { Pill } from '@/components/ui/Pill';
+import { Markdown } from '@/components/ui/Markdown';
 
 interface PhotoRecord {
   id: number;
@@ -194,9 +195,7 @@ export default function ProgressPage() {
                         <label className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-2 block">
                           Claude Analysis
                         </label>
-                        <p className="text-xs leading-relaxed text-t2 whitespace-pre-wrap">
-                          {current.analysisJson.text}
-                        </p>
+                        <Markdown>{current.analysisJson.text}</Markdown>
                       </div>
                     )}
                     <Btn
@@ -275,9 +274,7 @@ export default function ProgressPage() {
 
                 {analysis?.text && (
                   <div className="mt-2 p-2 rounded-lg bg-white/5 border border-white/10">
-                    <p className="text-[11px] leading-relaxed text-t2 whitespace-pre-wrap">
-                      {analysis.text}
-                    </p>
+                    <Markdown>{analysis.text}</Markdown>
                   </div>
                 )}
 

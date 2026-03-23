@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/Card";
 import { Btn } from "@/components/ui/Btn";
+import { Markdown } from "@/components/ui/Markdown";
 import { ConfBadge } from "@/components/trajectory/EventCard";
 import PresetCard from "@/components/impact/PresetCard";
 import ScenarioCard from "@/components/impact/ScenarioCard";
@@ -253,9 +254,7 @@ export default function ImpactPage() {
             ) : (
               <>
                 {/* Response text */}
-                <div className="text-[13px] leading-relaxed mb-2" style={{ color: "var(--t1)" }}>
-                  {askResult.response ?? askResult.summary}
-                </div>
+                <Markdown>{askResult.response ?? askResult.summary ?? ""}</Markdown>
 
                 {/* Relatable equivalent */}
                 {askResult.relatableEquiv && (

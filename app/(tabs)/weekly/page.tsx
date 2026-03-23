@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Label } from "@/components/ui/Label";
 import { Btn } from "@/components/ui/Btn";
+import { Markdown } from "@/components/ui/Markdown";
 
 // ─── Types (mirrored from API) ───────────────────────────────────────────────
 
@@ -349,9 +350,7 @@ function MomentumCard({
         </div>
       ) : data?.analysis ? (
         // Fallback: raw text
-        <p className="text-[13px] leading-[1.7] whitespace-pre-wrap" style={{ color: "var(--t1)" }}>
-          {data.analysis}
-        </p>
+        <Markdown>{data.analysis}</Markdown>
       ) : (
         <div className="text-center py-4">
           <p className="text-xs text-t3 mb-3">Analysis couldn&apos;t be generated right now</p>

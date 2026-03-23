@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Btn } from '@/components/ui/Btn';
 import { Label } from '@/components/ui/Label';
+import { Markdown } from '@/components/ui/Markdown';
 
 interface PhotoRecord {
   id: number;
@@ -228,7 +229,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
           <label className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-2 block">
             Claude Analysis
           </label>
-          <p className="text-t2 text-xs leading-relaxed whitespace-pre-wrap">{analysis}</p>
+          <Markdown>{analysis}</Markdown>
         </div>
       )}
     </Card>

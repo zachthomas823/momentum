@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Btn } from "@/components/ui/Btn";
 import { ConfBadge } from "@/components/trajectory/EventCard";
+import { Markdown } from "@/components/ui/Markdown";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -164,11 +165,8 @@ export default function ScenarioCard({ scenario, onDelete }: ScenarioCardProps) 
       {expanded && (
         <div className="mt-3 border-t border-white/10 pt-3">
           {/* Full original response */}
-          <div
-            className="text-[13px] leading-relaxed mb-3 whitespace-pre-wrap"
-            style={{ color: "var(--t1)" }}
-          >
-            {summary}
+          <div className="mb-3">
+            <Markdown>{summary}</Markdown>
           </div>
 
           {resp.relatableEquiv && (
@@ -188,12 +186,7 @@ export default function ScenarioCard({ scenario, onDelete }: ScenarioCardProps) 
                     </div>
                   ) : (
                     <div>
-                      <div
-                        className="text-[13px] leading-relaxed whitespace-pre-wrap"
-                        style={{ color: "var(--t1)" }}
-                      >
-                        {msg.text}
-                      </div>
+                      <Markdown>{msg.text}</Markdown>
                       {msg.confidence && (
                         <div className="mt-1">
                           <ConfBadge level={msg.confidence} />
