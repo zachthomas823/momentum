@@ -157,6 +157,45 @@ export const config = pgTable('config', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// ─── User Profile ────────────────────────────────────────────────────────────
+export const userProfile = pgTable('user_profile', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id)
+    .unique(),
+  name: text('name'),
+  age: integer('age'),
+  sex: text('sex').default('male'),
+  heightInches: real('height_inches'),
+  activityLevel: text('activity_level').default('moderate'),
+  aiPersona: text('ai_persona').default('coach'),
+  timezone: text('timezone').default('America/Los_Angeles'),
+  startWeight: real('start_weight'),
+  startBodyFat: real('start_body_fat'),
+  startDate: date('start_date'),
+  weeklyPaceLbs: real('weekly_pace_lbs'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// ─── Milestones ──────────────────────────────────────────────────────────────
+export const milestones = pgTable('milestones', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  label: text('label').notNull(),
+  type: text('type').notNull(), // 'weight' | 'event' | 'bf'
+  targetDate: date('target_date'),
+  targetWeight: real('target_weight'),
+  targetBodyFat: real('target_body_fat'),
+  isPrimary: boolean('is_primary').default(false),
+  sortOrder: integer('sort_order').default(0),
+  achievedAt: timestamp('achieved_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ─── Progress Photos ─────────────────────────────────────────────────────────
 export const photos = pgTable('photos', {
   id: serial('id').primaryKey(),

@@ -14,6 +14,8 @@ import {
   alcoholLogs,
   scenarios,
   photos,
+  userProfile,
+  milestones,
 } from '@/lib/db/schema';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -474,4 +476,32 @@ export async function deletePhoto(id: number): Promise<boolean> {
   const db = getDb();
   const result = await db.delete(photos).where(eq(photos.id, id)).returning();
   return result.length > 0;
+}
+
+// ─── User Profile & Milestones ───────────────────────────────────────────────
+
+/**
+ * Get the user profile for a given user ID.
+ * Returns the full row or null if no profile exists.
+ */
+export async function getUserProfile(userId: number) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(userProfile)
+    .where(eq(userProfile.userId, userId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Get all milestones for a given user, ordered by sortOrder ascending.
+ */
+export async function getUserMilestones(userId: number) {
+  const db = getDb();
+  return db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.userId, userId))
+    .orderBy(milestones.sortOrder);
 }
