@@ -17,7 +17,7 @@ import type {
   MilestoneResult,
 } from "@/lib/engine";
 import { detectAll } from "@/lib/patterns";
-import type { Nudge } from "@/lib/patterns";
+import type { Nudge, Persona } from "@/lib/patterns";
 import { daysTo } from "@/lib/engine/constants";
 import { verifySession } from "@/lib/auth/dal";
 
@@ -188,7 +188,8 @@ export async function GET() {
       }));
 
     const scorecard = computeScorecard(days);
-    const nudges = detectAll(days);
+    const persona: Persona = (profile?.aiPersona as Persona) ?? 'coach';
+    const nudges = detectAll(days, persona);
     const weight7dSma = sma(
       days.filter((d) => d.weightLbs != null).map((d) => d.weightLbs!),
       7
