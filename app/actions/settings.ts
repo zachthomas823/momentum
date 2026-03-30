@@ -18,6 +18,7 @@ export type ActionResult = {
 
 const ACTIVITY_LEVELS = ['sedentary', 'light', 'moderate', 'active'] as const
 const MILESTONE_TYPES = ['weight', 'event', 'bf'] as const
+const AI_PERSONAS = ['coach', 'buddy', 'analyst'] as const
 
 function parseNumber(val: FormDataEntryValue | null, field: string): { value?: number; error?: string } {
   if (val === null || val === '') return {}
@@ -84,6 +85,11 @@ export async function updateProfile(
     fieldErrors.weeklyPaceLbs = 'Weekly pace must be between 0 and 5 lbs'
   }
 
+  const aiPersona = formData.get('aiPersona') as string | null
+  if (aiPersona && !AI_PERSONAS.includes(aiPersona as typeof AI_PERSONAS[number])) {
+    fieldErrors.aiPersona = 'Invalid persona selection'
+  }
+
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'Validation failed', fieldErrors }
   }
@@ -99,6 +105,7 @@ export async function updateProfile(
         activityLevel: activityLevel || undefined,
         timezone: timezoneVal || undefined,
         weeklyPaceLbs: paceResult.value,
+        aiPersona: aiPersona || undefined,
         updatedAt: new Date(),
       })
       .where(eq(userProfile.userId, userId))

@@ -41,6 +41,7 @@ interface ProfileData {
   activityLevel: string | null;
   timezone: string | null;
   weeklyPaceLbs: number | null;
+  aiPersona: string | null;
 }
 
 interface MilestoneData {
@@ -82,6 +83,71 @@ const selectClass =
 const labelClass = 'block text-xs font-medium mb-1';
 
 /* ─── Profile Editor ──────────────────────────────────────────────────────── */
+
+const PERSONA_OPTIONS = [
+  { value: 'coach', emoji: '🏋️', label: 'Coach', desc: 'Accountability-forward. Calls out patterns. Pushes you.' },
+  { value: 'buddy', emoji: '🤝', label: 'Buddy', desc: 'Supportive and normalizing. Celebrates wins. Keeps it positive.' },
+  { value: 'analyst', emoji: '📊', label: 'Analyst', desc: 'Numbers-first. Minimal editorializing. Data and projections.' },
+] as const;
+
+function PersonaSelector({ current, onRefresh }: { current: string | null; onRefresh: () => void }) {
+  const selected = current ?? 'coach';
+  const [state, action, pending] = useActionState(updateProfile, undefined);
+
+  useEffect(() => {
+    if (state?.ok) onRefresh();
+  }, [state?.ok, onRefresh]);
+
+  return (
+    <Card className="mb-4">
+      <Label>AI Persona</Label>
+      <p className="mt-1 text-sm" style={{ color: 'var(--t3)' }}>
+        Choose your AI persona — this changes how insights and nudges are communicated.
+      </p>
+      <form action={action} className="mt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {PERSONA_OPTIONS.map((p) => (
+            <label
+              key={p.value}
+              className={`relative flex flex-col gap-1 p-3 rounded-xl border cursor-pointer transition-all ${
+                selected === p.value
+                  ? 'border-[var(--amber)] bg-[var(--amber)]/[0.08]'
+                  : 'border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]'
+              }`}
+            >
+              <input
+                type="radio"
+                name="aiPersona"
+                value={p.value}
+                defaultChecked={selected === p.value}
+                className="sr-only"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{p.emoji}</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--t1)' }}>{p.label}</span>
+                {selected === p.value && (
+                  <span className="ml-auto text-xs" style={{ color: 'var(--amber)' }}>✓</span>
+                )}
+              </div>
+              <span className="text-xs leading-snug" style={{ color: 'var(--t3)' }}>{p.desc}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-3">
+          <Btn type="submit" full color="var(--teal)" disabled={pending}>
+            {pending ? 'Saving…' : 'Save Persona'}
+          </Btn>
+        </div>
+        {state?.ok && (
+          <p className="mt-2 text-sm font-medium" style={{ color: 'var(--teal)' }}>✓ Persona updated</p>
+        )}
+        {state?.error && (
+          <p className="mt-2 text-sm font-medium" style={{ color: 'var(--rose)' }}>{state.error}</p>
+        )}
+      </form>
+    </Card>
+  );
+}
 
 function ProfileEditor({ initial }: { initial: ProfileData | null }) {
   const [state, action, pending] = useActionState(updateProfile, undefined);
@@ -579,6 +645,11 @@ export default function SettingsPage() {
         </Card>
       ) : (
         <ProfileEditor initial={profile} />
+      )}
+
+      {/* ── Section 1b: AI Persona Selector ──────────────────────────── */}
+      {!dataLoading && (
+        <PersonaSelector current={profile?.aiPersona ?? null} onRefresh={fetchProfileData} />
       )}
 
       {/* ── Section 2: Milestones Manager ────────────────────────────── */}
