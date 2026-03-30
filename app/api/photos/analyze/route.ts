@@ -15,20 +15,9 @@ import { get } from "@vercel/blob";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { prepareClaudeCredentials } from "@/lib/claude/credentials";
 import { createFitnessServer } from "@/lib/claude/fitness-tools";
-
-const PHOTO_SYSTEM_PROMPT = `You are a body composition coach reviewing progress photos. You can see the actual photos the user has taken.
-
-When comparing two photos:
-- Focus on visible changes: shoulder-to-waist ratio, arm definition, midsection, face/jawline, posture
-- Be specific about what you observe — "slightly more definition in the lateral deltoid" not "looking more muscular"
-- If lighting or angle differences make comparison unreliable, say so honestly
-- Don't fabricate progress. If 2 weeks and 2 lbs isn't visually apparent, that's normal — say so
-- Reference the weight/BF% data alongside visual observations
-- The scale data tells the real story; photos add context but aren't the primary metric
-
-You also have access to fitness data tools. Use them to check what training, sleep, and diet patterns happened between the two photo dates.
-
-Keep it under 200 words. Use confidence tiers (🟢/🟡/🔴) only for physiological claims. Write like a coach reviewing check-in photos with an athlete — direct, honest, encouraging.`;
+import { buildSystemPrompt } from "@/lib/claude/prompts";
+import { verifySession } from "@/lib/auth/dal";
+import { getUserProfile, getUserMilestones } from "@/lib/db/queries";
 
 /** Fetch a blob and return its base64 data. */
 async function blobToBase64(blobUrl: string): Promise<string | null> {
@@ -89,6 +78,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No Claude credentials available" }, { status: 503 });
     }
 
+    // Auth + profile for persona-aware prompts (fail gracefully to defaults)
+    let profileName = "User";
+    let profileAge = 28;
+    let profilePersona: string = "coach";
+    let userMilestones: Awaited<ReturnType<typeof getUserMilestones>> = [];
+    try {
+      const session = await verifySession();
+      const userId = session.userId as number;
+      const profile = await getUserProfile(userId);
+      if (profile) {
+        profileName = profile.name ?? "User";
+        profileAge = profile.age ?? 28;
+        profilePersona = profile.aiPersona ?? "coach";
+      }
+      userMilestones = await getUserMilestones(userId);
+    } catch (err) {
+      console.error("[photos/analyze] Profile query failed, using defaults:", err);
+    }
+
+    const photoPrompt = buildSystemPrompt({
+      persona: profilePersona as 'coach' | 'buddy' | 'analyst',
+      name: profileName,
+      age: profileAge,
+      milestones: userMilestones,
+      entryPoint: 'photos',
+    });
+
     const controller = new AbortController();
     const claudeBinPath = path.join(process.cwd(), "node_modules/@anthropic-ai/claude-code/cli.js");
     const { ANTHROPIC_AUTH_TOKEN: _a, ANTHROPIC_API_KEY: _b, ...baseEnv } = process.env as Record<string, string>;
@@ -141,7 +157,7 @@ export async function POST(req: NextRequest) {
           const sdk = query({
             prompt: messages(),
             options: {
-              systemPrompt: PHOTO_SYSTEM_PROMPT,
+              systemPrompt: photoPrompt,
               maxTurns: 5,
               abortController: controller,
               permissionMode: "dontAsk",
