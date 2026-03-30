@@ -93,9 +93,12 @@ export async function GET() {
     const currentBodyFat = latestWeight?.bodyFatPct ?? null;
 
     // Engine computations
-    const pace = derivedPace(days);
-    const tdee = tdeePipeline(currentWeight, days);
-    const milestones = checkMilestones(currentWeight);
+    const pace = derivedPace(days, TARGETS.weeklyPaceLbs);
+    const tdee = tdeePipeline(currentWeight, days, { height: TARGETS.height, age: TARGETS.age });
+    const milestones = checkMilestones(currentWeight, [
+      { label: "Bachelor party weight — nailed it", targetWeight: TARGETS.bachelorParty.weight, icon: "🎉" },
+      { label: "Wedding weight achieved", targetWeight: TARGETS.wedding.weight, icon: "💍" },
+    ], TARGETS.startWeight);
     const scorecard = computeScorecard(days);
     const nudges = detectAll(days);
     const weight7dSma = sma(

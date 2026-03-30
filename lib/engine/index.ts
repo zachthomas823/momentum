@@ -2,7 +2,7 @@
 // Pure functions ported from POC app.jsx, adapted for flat DayRecord shape.
 // No React, no DB — these are portable computation modules.
 
-import { TARGETS, DIET } from "./constants";
+import { DIET } from "./constants";
 import type { DayRecord } from "@/lib/db/queries";
 
 // ─── Impact Return Types ─────────────────────────────────────────────────────
@@ -184,10 +184,10 @@ export function sma(values: number[], window: number = 7): number | null {
  * Derive actual weekly loss rate from weight data using EMA smoothing.
  * Adapted for flat DayRecord shape (d.weightLbs, not d.weight?.lbs).
  */
-export function derivedPace(days: DayRecord[]): PaceResult {
+export function derivedPace(days: DayRecord[], defaultPace: number = 0.5): PaceResult {
   const wDays = days.filter((d) => d.weightLbs != null);
   if (wDays.length < 2) {
-    return { rate: TARGETS.weeklyPaceLbs, source: "default", confidence: "low" };
+    return { rate: defaultPace, source: "default", confidence: "low" };
   }
 
   const smoothed = ema(wDays.map((d) => d.weightLbs!));
@@ -201,7 +201,7 @@ export function derivedPace(days: DayRecord[]): PaceResult {
       new Date(wDays[0].date).getTime()) /
     864e5;
   if (daySpan < 3) {
-    return { rate: TARGETS.weeklyPaceLbs, source: "default", confidence: "low" };
+    return { rate: defaultPace, source: "default", confidence: "low" };
   }
 
   const rate = (avgFirst - avgLast) / (daySpan / 7);
@@ -221,9 +221,10 @@ export function derivedPace(days: DayRecord[]): PaceResult {
  */
 export function tdeePipeline(
   currentWeight: number,
-  days: DayRecord[]
+  days: DayRecord[],
+  profile: { height: number; age: number }
 ): TdeePipelineResult {
-  const bmrVal = bmr(currentWeight, TARGETS.height, TARGETS.age);
+  const bmrVal = bmr(currentWeight, profile.height, profile.age);
   const stepDays = days.filter((d) => d.steps != null);
   const avgSteps = stepDays.length
     ? stepDays.reduce((a, d) => a + d.steps!, 0) / stepDays.length
@@ -234,21 +235,27 @@ export function tdeePipeline(
 
 // ─── Milestone Detection ─────────────────────────────────────────────────────
 
-export function checkMilestones(currentWeight: number): MilestoneResult[] {
-  const milestones: MilestoneResult[] = [];
-  const lost = TARGETS.startWeight - currentWeight;
+export function checkMilestones(
+  currentWeight: number,
+  milestones: Array<{ label: string; targetWeight: number; icon: string }>,
+  startWeight: number
+): MilestoneResult[] {
+  const results: MilestoneResult[] = [];
+  const lost = startWeight - currentWeight;
 
-  if (lost >= 3) milestones.push({ icon: "📉", label: `${lost.toFixed(1)} lbs down from start` });
-  if (lost >= 5) milestones.push({ icon: "🔥", label: "5+ lbs down" });
-  if (lost >= 10) milestones.push({ icon: "🔟", label: "Double digits down" });
-  if (currentWeight <= 205) milestones.push({ icon: "⚡", label: "Broke 205" });
-  if (currentWeight <= 202.6) milestones.push({ icon: "👑", label: "New all-time lean (beat Sep 2024)" });
-  if (currentWeight <= TARGETS.bachelorParty.weight)
-    milestones.push({ icon: "🎉", label: "Bachelor party weight — nailed it" });
-  if (currentWeight <= TARGETS.wedding.weight)
-    milestones.push({ icon: "💍", label: "Wedding weight achieved" });
+  // Dynamic "X lbs down" milestones based on startWeight
+  if (lost >= 3) results.push({ icon: "📉", label: `${lost.toFixed(1)} lbs down from start` });
+  if (lost >= 5) results.push({ icon: "🔥", label: "5+ lbs down" });
+  if (lost >= 10) results.push({ icon: "🔟", label: "Double digits down" });
 
-  return milestones;
+  // User-configured target-based milestones
+  for (const m of milestones) {
+    if (currentWeight <= m.targetWeight) {
+      results.push({ icon: m.icon, label: m.label });
+    }
+  }
+
+  return results;
 }
 
 // ─── Layer 2: Impact Modifiers ───────────────────────────────────────────────

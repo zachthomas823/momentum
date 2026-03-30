@@ -171,7 +171,7 @@ export default function Trajectory({
   }
 
   const columns: Column[] = [];
-  const pace = derivedPace(days);
+  const pace = derivedPace(days, TARGETS.weeklyPaceLbs);
   const paceInMetric = isBf ? pace.rate * 0.15 : pace.rate;
 
   if (zoom === "day") {

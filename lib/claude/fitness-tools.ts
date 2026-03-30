@@ -82,9 +82,12 @@ export function createFitnessServer() {
             .filter((d) => d.bodyFatPct != null)
             .map((d) => d.bodyFatPct!);
 
-          const pace = derivedPace(days);
-          const pipeline = tdeePipeline(currentWeight, days);
-          const milestones = checkMilestones(currentWeight);
+          const pace = derivedPace(days, TARGETS.weeklyPaceLbs);
+          const pipeline = tdeePipeline(currentWeight, days, { height: TARGETS.height, age: TARGETS.age });
+          const milestones = checkMilestones(currentWeight, [
+            { label: "Bachelor party weight — nailed it", targetWeight: TARGETS.bachelorParty.weight, icon: "🎉" },
+            { label: "Wedding weight achieved", targetWeight: TARGETS.wedding.weight, icon: "💍" },
+          ], TARGETS.startWeight);
 
           const result = {
             currentWeight: latestWeight?.weightLbs ?? null,

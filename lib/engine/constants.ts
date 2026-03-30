@@ -63,10 +63,10 @@ export const DRINKS = ["Beer", "Wine", "Liquor", "Cocktail"] as const;
  * Returns ceiling of the difference (partial days count as 1).
  * Never uses toISOString() — always local midnight.
  */
-export function daysTo(dateStr: string): number {
+export function daysTo(dateStr: string, timezone: string = "America/Los_Angeles"): number {
   const target = new Date(dateStr + "T12:00:00");
   // Use user's timezone for "today"
-  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: timezone });
   const today = new Date(todayStr + "T12:00:00");
   return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
 }
