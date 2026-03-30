@@ -40,7 +40,7 @@ export function createFitnessServer() {
       // ── Get today's full data ─────────────────────────────────────────
       tool(
         "get_today_data",
-        "Get all logged data for today: exercise (type, duration), sleep (hours, stages), diet (score, mode), weight, body fat, steps, active minutes, heart rate, HRV. Use this when the user asks about 'today' or 'my workout' or 'this morning'.",
+        "Get all logged data for today: exercise (type, duration), sleep (hours, stages), diet (score, mode), weight, body fat, steps, active minutes, heart rate, HRV, and vacation context (name, notes). Use this when the user asks about 'today' or 'my workout' or 'this morning'. If vacation data is present, factor in that the user is on vacation when giving advice.",
         {},
         async () => {
           const today = todayLocal();
@@ -54,7 +54,7 @@ export function createFitnessServer() {
       // ── Get recent day records ────────────────────────────────────────
       tool(
         "get_recent_days",
-        "Get day-by-day records for the last N days. Each day includes: weight, body fat, sleep hours/stages, steps, exercise, diet score, drinks, heart rate. Use this for questions about trends, patterns, or 'this week'.",
+        "Get day-by-day records for the last N days. Each day includes: weight, body fat, sleep hours/stages, steps, exercise, diet score, drinks, heart rate, and vacation context (vacationName, vacationNotes). Days with vacationName set are vacation days — factor this into trend analysis and advice. Use this for questions about trends, patterns, or 'this week'.",
         {
           days: z.number().min(1).max(30).default(7).describe("Number of days to look back"),
         },

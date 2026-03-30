@@ -12,6 +12,7 @@ import {
   heartRateLogs,
   dietLogs,
   alcoholLogs,
+  vacationLogs,
   scenarios,
   photos,
   userProfile,
@@ -49,6 +50,9 @@ export interface DayRecord {
   // Alcohol
   totalDrinks: number | null;
   dry: boolean | null;
+  // Vacation
+  vacationName: string | null;
+  vacationNotes: string | null;
 }
 
 // ─── getDayRecords ───────────────────────────────────────────────────────────
@@ -88,6 +92,8 @@ export async function getDayRecords(
     diet_mode: string | null;
     total_drinks: number | null;
     dry: boolean | null;
+    vacation_name: string | null;
+    vacation_notes: string | null;
   }>(sql`
     WITH all_dates AS (
       SELECT DISTINCT date FROM (
@@ -102,6 +108,8 @@ export async function getDayRecords(
         SELECT date FROM diet_logs WHERE date >= ${startDate} AND date <= ${endDate}
         UNION
         SELECT date FROM alcohol_logs WHERE date >= ${startDate} AND date <= ${endDate}
+        UNION
+        SELECT date FROM vacation_logs WHERE date >= ${startDate} AND date <= ${endDate}
       ) AS dates
     )
     SELECT
@@ -126,7 +134,9 @@ export async function getDayRecords(
       dl.score AS diet_score,
       dl.mode AS diet_mode,
       al.total_drinks,
-      al.dry
+      al.dry,
+      vl.vacation_name,
+      vl.notes AS vacation_notes
     FROM all_dates d
     LEFT JOIN weight_logs w ON w.date = d.date AND w.source = 'fitbit'
     LEFT JOIN sleep_logs s ON s.date = d.date AND s.source = 'fitbit'
@@ -135,6 +145,7 @@ export async function getDayRecords(
     LEFT JOIN heart_rate_logs h ON h.date = d.date AND h.source = 'fitbit'
     LEFT JOIN diet_logs dl ON dl.date = d.date
     LEFT JOIN alcohol_logs al ON al.date = d.date
+    LEFT JOIN vacation_logs vl ON vl.date = d.date
     ORDER BY d.date ASC
   `);
 
@@ -161,6 +172,8 @@ export async function getDayRecords(
     dietMode: r.diet_mode,
     totalDrinks: r.total_drinks,
     dry: r.dry,
+    vacationName: r.vacation_name,
+    vacationNotes: r.vacation_notes,
   }));
 }
 
@@ -325,6 +338,43 @@ export async function upsertAlcoholLog(data: {
     });
 }
 
+/**
+ * Upsert a vacation log entry. Conflict resolution on date only.
+ */
+export async function upsertVacationLog(data: {
+  date: string;
+  vacationName: string;
+  notes?: string | null;
+}) {
+  const db = getDb();
+  await db
+    .insert(vacationLogs)
+    .values({
+      date: data.date,
+      vacationName: data.vacationName,
+      notes: data.notes ?? null,
+    })
+    .onConflictDoUpdate({
+      target: [vacationLogs.date],
+      set: {
+        vacationName: data.vacationName,
+        notes: data.notes ?? null,
+      },
+    });
+}
+
+/**
+ * Delete a vacation log entry for a given date.
+ */
+export async function deleteVacationLog(date: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db
+    .delete(vacationLogs)
+    .where(eq(vacationLogs.date, date))
+    .returning();
+  return result.length > 0;
+}
+
 // ─── getDayLog ───────────────────────────────────────────────────────────────
 
 export interface DayLog {
@@ -335,6 +385,7 @@ export interface DayLog {
   heartRate: (typeof heartRateLogs.$inferSelect) | null;
   diet: (typeof dietLogs.$inferSelect) | null;
   alcohol: (typeof alcoholLogs.$inferSelect) | null;
+  vacation: (typeof vacationLogs.$inferSelect) | null;
 }
 
 /**
@@ -345,7 +396,7 @@ export interface DayLog {
 export async function getDayLog(date: string): Promise<DayLog> {
   const db = getDb();
 
-  const [weightRows, sleepRows, activityRows, heartRateRows, dietRows, alcoholRows] =
+  const [weightRows, sleepRows, activityRows, heartRateRows, dietRows, alcoholRows, vacationRows] =
     await Promise.all([
       db.select().from(weightLogs).where(eq(weightLogs.date, date)).orderBy(desc(weightLogs.source)),
       db.select().from(sleepLogs).where(eq(sleepLogs.date, date)).orderBy(desc(sleepLogs.source)),
@@ -353,6 +404,7 @@ export async function getDayLog(date: string): Promise<DayLog> {
       db.select().from(heartRateLogs).where(eq(heartRateLogs.date, date)),
       db.select().from(dietLogs).where(eq(dietLogs.date, date)),
       db.select().from(alcoholLogs).where(eq(alcoholLogs.date, date)),
+      db.select().from(vacationLogs).where(eq(vacationLogs.date, date)),
     ]);
 
   return {
@@ -363,6 +415,7 @@ export async function getDayLog(date: string): Promise<DayLog> {
     heartRate: heartRateRows[0] ?? null,
     diet: dietRows[0] ?? null,
     alcohol: alcoholRows[0] ?? null,
+    vacation: vacationRows[0] ?? null,
   };
 }
 

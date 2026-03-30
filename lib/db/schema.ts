@@ -196,6 +196,15 @@ export const milestones = pgTable('milestones', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// ─── Vacation Logs ──────────────────────────────────────────────────────────
+export const vacationLogs = pgTable('vacation_logs', {
+  id: serial('id').primaryKey(),
+  date: date('date').notNull().unique(),
+  vacationName: text('vacation_name').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ─── Progress Photos ─────────────────────────────────────────────────────────
 export const photos = pgTable('photos', {
   id: serial('id').primaryKey(),

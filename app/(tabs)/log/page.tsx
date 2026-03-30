@@ -8,6 +8,7 @@ import { WeightCard } from '@/components/log/WeightCard';
 import { SleepCard } from '@/components/log/SleepCard';
 import { ExerciseCard } from '@/components/log/ExerciseCard';
 import { PhotoCard } from '@/components/log/PhotoCard';
+import { VacationCard } from '@/components/log/VacationCard';
 
 /** Format today as YYYY-MM-DD using local timezone. */
 function todayLocal(): string {
@@ -38,6 +39,7 @@ export default function LogPage() {
       <DateSelector selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
       <div className="flex flex-col gap-4">
+        <VacationCard date={selectedDate} onSaved={handleSaved} />
         <DietCard date={selectedDate} onSaved={handleSaved} />
         <AlcoholCard date={selectedDate} onSaved={handleSaved} />
         <WeightCard date={selectedDate} onSaved={handleSaved} />
