@@ -12,10 +12,13 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { prepareClaudeCredentials } from "@/lib/claude/credentials";
 import { createFitnessServer } from "@/lib/claude/fitness-tools";
 import { parseQuery } from "@/lib/engine/keywords";
+import { verifySession } from "@/lib/auth/dal";
+import { getUserProfile } from "@/lib/db/queries";
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a body composition advisor embedded in Momentum, a decision-impact fitness tracker. You help one user (Zach, 28, targeting a wedding on Sept 5, 2026) understand how lifestyle decisions cascade into body composition changes.
+function buildSystemPrompt(name: string, age: number): string {
+  return `You are a body composition advisor embedded in Momentum, a decision-impact fitness tracker. You help one user (${name}, ${age}, working toward fitness goals) understand how lifestyle decisions cascade into body composition changes.
 
 PHILOSOPHY (this governs everything you say):
 
@@ -64,6 +67,7 @@ FRAMING EXAMPLES:
 ✓ "Going to the gym tonight shifts your projected trajectory modestly but it compounds."
 ✗ "You skipped the gym and drank — here's how much that set you back."
 ✗ "You should go to the gym instead of going out."`;
+}
 
 // ─── Response Validation ─────────────────────────────────────────────────────
 
@@ -104,6 +108,24 @@ export async function POST(request: NextRequest) {
     const trimmedQuery = userQuery.trim();
     const localResult = parseQuery(trimmedQuery);
 
+    // Query DB for profile to personalize the system prompt
+    let profileName = "User";
+    let profileAge = 28;
+    try {
+      const session = await verifySession();
+      const userId = session.userId as number;
+      const profile = await getUserProfile(userId);
+      if (profile) {
+        profileName = profile.name ?? "User";
+        profileAge = profile.age ?? 28;
+      }
+    } catch (err) {
+      // Auth or DB failure — use defaults, don't block the request
+      console.error("[impact/analyze] Profile query failed, using defaults:", err);
+    }
+
+    const systemPrompt = buildSystemPrompt(profileName, profileAge);
+
     const creds = await prepareClaudeCredentials();
 
     if (creds) {
@@ -129,7 +151,7 @@ export async function POST(request: NextRequest) {
             const sdk = query({
               prompt: trimmedQuery,
               options: {
-                systemPrompt: SYSTEM_PROMPT,
+                systemPrompt: systemPrompt,
                 maxTurns: 5,
                 abortController: controller,
                 permissionMode: "dontAsk",

@@ -9,6 +9,8 @@ import {
   getDayLog,
   getDayRecords,
   getLatestWeight,
+  getUserProfile,
+  getUserMilestones,
 } from "@/lib/db/queries";
 import {
   exerciseImpact,
@@ -20,9 +22,16 @@ import {
   tdeePipeline,
   checkMilestones,
 } from "@/lib/engine";
-import { TARGETS } from "@/lib/engine/constants";
 
 import { todayLocal, formatDateLocal } from "@/lib/date-utils";
+
+// Fallback defaults when no DB profile exists
+const DEFAULTS = {
+  startWeight: 208.6,
+  weeklyPaceLbs: 0.5,
+  height: 72,
+  age: 28,
+} as const;
 
 export function createFitnessServer() {
   return createSdkMcpServer({
@@ -69,12 +78,30 @@ export function createFitnessServer() {
           const end = new Date();
           const start = new Date(end);
           start.setDate(start.getDate() - 29);
+
+          // Query DB for profile and milestones (userId 1 for MCP server context)
+          let profile: Awaited<ReturnType<typeof getUserProfile>> | null = null;
+          let dbMilestones: Awaited<ReturnType<typeof getUserMilestones>> = [];
+          try {
+            [profile, dbMilestones] = await Promise.all([
+              getUserProfile(1),
+              getUserMilestones(1),
+            ]);
+          } catch (err) {
+            console.error("[fitness-tools] DB profile query failed, using defaults:", err);
+          }
+
+          const height = profile?.heightInches ?? DEFAULTS.height;
+          const age = profile?.age ?? DEFAULTS.age;
+          const startWeight = profile?.startWeight ?? DEFAULTS.startWeight;
+          const weeklyPace = profile?.weeklyPaceLbs ?? DEFAULTS.weeklyPaceLbs;
+
           const [days, latestWeight] = await Promise.all([
             getDayRecords(formatDateLocal(start), formatDateLocal(end)),
             getLatestWeight(),
           ]);
 
-          const currentWeight = latestWeight?.weightLbs ?? TARGETS.startWeight;
+          const currentWeight = latestWeight?.weightLbs ?? startWeight;
           const weightValues = days
             .filter((d) => d.weightLbs != null)
             .map((d) => d.weightLbs!);
@@ -82,12 +109,27 @@ export function createFitnessServer() {
             .filter((d) => d.bodyFatPct != null)
             .map((d) => d.bodyFatPct!);
 
-          const pace = derivedPace(days, TARGETS.weeklyPaceLbs);
-          const pipeline = tdeePipeline(currentWeight, days, { height: TARGETS.height, age: TARGETS.age });
-          const milestones = checkMilestones(currentWeight, [
-            { label: "Bachelor party weight — nailed it", targetWeight: TARGETS.bachelorParty.weight, icon: "🎉" },
-            { label: "Wedding weight achieved", targetWeight: TARGETS.wedding.weight, icon: "💍" },
-          ], TARGETS.startWeight);
+          const pace = derivedPace(days, weeklyPace);
+          const pipeline = tdeePipeline(currentWeight, days, { height, age });
+
+          // Map DB milestones with targetWeight for checkMilestones
+          const milestoneTargets = dbMilestones
+            .filter((m) => m.targetWeight != null)
+            .map((m) => ({
+              label: m.label,
+              targetWeight: m.targetWeight!,
+              icon: m.type === "event" ? "🎯" : "📉",
+            }));
+          const milestones = checkMilestones(currentWeight, milestoneTargets, startWeight);
+
+          // Build milestone targets for response
+          const milestoneInfo = dbMilestones
+            .filter((m) => m.targetDate != null || m.targetWeight != null)
+            .map((m) => ({
+              label: m.label,
+              targetDate: m.targetDate,
+              targetWeight: m.targetWeight,
+            }));
 
           const result = {
             currentWeight: latestWeight?.weightLbs ?? null,
@@ -103,10 +145,7 @@ export function createFitnessServer() {
             bmr: Math.round(pipeline.bmr),
             avgSteps: pipeline.avgSteps,
             milestones,
-            targets: {
-              bachelorParty: TARGETS.bachelorParty,
-              wedding: TARGETS.wedding,
-            },
+            targets: milestoneInfo,
           };
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],

@@ -118,8 +118,18 @@ export default function DashboardPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const { pace, tdee, milestones, scorecard } = data;
-  const displayWeight = data.currentWeight ?? data.targets.startWeight;
+  const displayWeight = data.currentWeight ?? data.profile.startWeight;
   const displayBf = data.currentBodyFat;
+
+  // Find primary milestones for display
+  const primaryCountdowns = data.countdowns.slice(0, 2);
+  const firstCountdown = primaryCountdowns[0];
+  const secondCountdown = primaryCountdowns[1];
+
+  // Find weight targets from milestones for the toggle card
+  const primaryMilestone = data.userMilestones.find((m) => m.isPrimary) ?? data.userMilestones[0];
+  const targetWeight = primaryMilestone?.targetWeight;
+  const targetBodyFat = primaryMilestone?.targetBodyFat;
 
   return (
     <div className="flex flex-col gap-4 pb-[100px]">
@@ -131,7 +141,7 @@ export default function DashboardPage() {
           color: "var(--amber)",
         }}
       >
-        {data.bachelorPartyDays} days to walk in looking better than everyone.
+        {firstCountdown ? `${firstCountdown.daysLeft} days to ${firstCountdown.label.toLowerCase()}.` : "Track your progress."}
       </p>
 
       {/* ── Milestone Celebrations ───────────────────────────────────────── */}
@@ -154,46 +164,31 @@ export default function DashboardPage() {
       )}
 
       {/* ── Countdown Cards ──────────────────────────────────────────────── */}
+      {primaryCountdowns.length > 0 && (
       <div className="flex gap-3">
-        <Card className="flex-1">
-          <div className="flex flex-col items-center text-center">
-            <span className="text-lg mb-1">🎉</span>
-            <span
-              className="font-bold"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 36,
-                color: "var(--amber)",
-                textShadow: "0 0 20px rgba(245,166,35,0.3)",
-              }}
-            >
-              {data.bachelorPartyDays}
-            </span>
-            <span className="text-t2 text-[10px] uppercase tracking-widest font-bold">
-              Bachelor Party
-            </span>
-          </div>
-        </Card>
-        <Card className="flex-1">
-          <div className="flex flex-col items-center text-center">
-            <span className="text-lg mb-1">💍</span>
-            <span
-              className="font-bold"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 36,
-                color: "var(--amber)",
-                textShadow: "0 0 20px rgba(245,166,35,0.3)",
-              }}
-            >
-              {data.weddingDays}
-            </span>
-            <span className="text-t2 text-[10px] uppercase tracking-widest font-bold">
-              Wedding
-            </span>
-          </div>
-        </Card>
+        {primaryCountdowns.map((cd) => (
+          <Card key={cd.label} className="flex-1">
+            <div className="flex flex-col items-center text-center">
+              <span className="text-lg mb-1">{cd.icon}</span>
+              <span
+                className="font-bold"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 36,
+                  color: "var(--amber)",
+                  textShadow: "0 0 20px rgba(245,166,35,0.3)",
+                }}
+              >
+                {cd.daysLeft}
+              </span>
+              <span className="text-t2 text-[10px] uppercase tracking-widest font-bold">
+                {cd.label}
+              </span>
+            </div>
+          </Card>
+        ))}
       </div>
+      )}
 
       {/* ── Trajectory Section ───────────────────────────────────────────── */}
       <div>
@@ -240,8 +235,8 @@ export default function DashboardPage() {
           </span>
           <span className="text-t3 text-[10px] mt-0.5">
             {showBf
-              ? `Target: ${data.targets.bachelorParty.bodyFat}% · 7-day avg`
-              : `Target: ${data.targets.bachelorParty.weight} lbs · 7-day avg`}
+              ? targetBodyFat != null ? `Target: ${targetBodyFat}% · 7-day avg` : "7-day avg"
+              : targetWeight != null ? `Target: ${targetWeight} lbs · 7-day avg` : "7-day avg"}
           </span>
           <span className="text-t3 text-[9px] mt-1 opacity-50">
             tap to switch
