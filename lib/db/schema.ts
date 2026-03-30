@@ -12,6 +12,14 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 
+// ─── Users ───────────────────────────────────────────────────────────────────
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ─── Weight Logs ─────────────────────────────────────────────────────────────
 export const weightLogs = pgTable(
   'weight_logs',
