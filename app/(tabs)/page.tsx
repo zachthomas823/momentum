@@ -200,6 +200,8 @@ export default function DashboardPage() {
         </div>
         <Trajectory
           days={data.days}
+          milestones={data.userMilestones}
+          profile={data.profile}
           onEventTap={(id) => setExpandedEvent(id === expandedEvent ? null : id)}
           expandedEvent={expandedEvent}
           metric={showBf ? "bf" : "weight"}

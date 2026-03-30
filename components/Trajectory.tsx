@@ -2,8 +2,9 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { ema, derivedPace, projectedWeight } from "@/lib/engine";
-import { TARGETS, daysTo } from "@/lib/engine/constants";
+import { daysTo } from "@/lib/engine/constants";
 import { buildEventsFromData } from "@/lib/engine/events";
+import type { ProfileData, MilestoneData } from "@/app/api/dashboard/route";
 import type { DayEvents } from "@/lib/engine/events";
 import type { DayRecord } from "@/lib/db/queries";
 import EventCard, { ConfBadge } from "@/components/trajectory/EventCard";
@@ -110,6 +111,8 @@ function todayStr(): string {
 
 interface TrajectoryProps {
   days: DayRecord[];
+  milestones: MilestoneData[];
+  profile: ProfileData;
   onEventTap?: (eventId: string) => void;
   expandedEvent?: string | null;
   metric?: "weight" | "bf";
@@ -119,6 +122,8 @@ interface TrajectoryProps {
 
 export default function Trajectory({
   days,
+  milestones,
+  profile,
   onEventTap,
   expandedEvent: controlledExpanded,
   metric = "weight",
@@ -145,15 +150,23 @@ export default function Trajectory({
   const accentRgb = isBf ? "6,214,160" : "245,166,35";
   const accentHex = isBf ? "#06d6a0" : "#f5a623";
 
-  // Target events
-  const targets = [
-    { date: TARGETS.bachelorParty.date, label: "Bachelor Party", weight: TARGETS.bachelorParty.weight, bf: TARGETS.bachelorParty.bodyFat, icon: "🎉" },
-    { date: TARGETS.wedding.date, label: "Wedding", weight: TARGETS.wedding.weight, bf: TARGETS.wedding.bodyFat, icon: "💍" },
-  ];
+  // Build target events from dynamic milestones (only those with dates)
+  const targets = milestones
+    .filter((m) => m.targetDate != null)
+    .map((m) => ({
+      date: m.targetDate!,
+      label: m.label,
+      weight: m.targetWeight ?? 0,
+      bf: m.targetBodyFat ?? 0,
+      icon: m.type === "event" ? "🎉" : "📉",
+    }));
 
-  // Timeline: from 30 days ago to wedding + 7 days
+  // Timeline: from first data day to last milestone + 7 days (or 30 days out if no milestones)
   const startDate = days.length > 0 ? days[0].date : addDays(today, -30);
-  const endDate = addDays(TARGETS.wedding.date, 7);
+  const lastMilestoneDate = targets.length > 0
+    ? targets.reduce((latest, t) => (t.date > latest ? t.date : latest), targets[0].date)
+    : addDays(today, 30);
+  const endDate = addDays(lastMilestoneDate, 7);
   const totalDays = dateDiffDays(startDate, endDate);
 
   // Build columns based on zoom level
@@ -171,7 +184,7 @@ export default function Trajectory({
   }
 
   const columns: Column[] = [];
-  const pace = derivedPace(days, TARGETS.weeklyPaceLbs);
+  const pace = derivedPace(days, profile.weeklyPaceLbs);
   const paceInMetric = isBf ? pace.rate * 0.15 : pace.rate;
 
   if (zoom === "day") {
@@ -286,12 +299,14 @@ export default function Trajectory({
     });
 
     // Last known value for projections
-    const lastVal = dataPts.length > 0 ? dataPts[dataPts.length - 1].val : (isBf ? TARGETS.startBodyFat : TARGETS.startWeight);
+    const lastVal = dataPts.length > 0 ? dataPts[dataPts.length - 1].val : (isBf ? (profile.startBodyFat ?? 17.9) : profile.startWeight);
     const lastCol = dataPts.length > 0 ? dataPts[dataPts.length - 1].col : 0;
 
-    // Target values for Y-axis range
-    const targetVal = isBf ? TARGETS.bachelorParty.bodyFat : TARGETS.bachelorParty.weight;
-    const weddingVal = isBf ? TARGETS.wedding.bodyFat : TARGETS.wedding.weight;
+    // Target values for Y-axis range — use first milestone with targets if available
+    const primaryTarget = targets[0];
+    const lastTarget = targets[targets.length - 1];
+    const targetVal = primaryTarget ? (isBf ? primaryTarget.bf : primaryTarget.weight) : lastVal - 5;
+    const weddingVal = lastTarget ? (isBf ? lastTarget.bf : lastTarget.weight) : lastVal - 8;
 
     // Y-axis range: include data, targets, and projection range
     const allVals = dataPts.map(p => p.val);

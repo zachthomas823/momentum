@@ -27,15 +27,7 @@ interface SyncResult {
   reauth?: boolean;
 }
 
-/* ─── Helpers ──────────────────────────────────────────────────────────────── */
-
-const WEDDING_DATE = new Date('2026-09-05T00:00:00');
-
-function daysUntilWedding(): number {
-  const now = new Date();
-  const diff = WEDDING_DATE.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-}
+/* ─── Helpers ──────────────────────────────────────────────────── */
 
 function formatRelativeTime(iso: string): string {
   const d = new Date(iso);
@@ -133,8 +125,6 @@ export default function SettingsPage() {
   };
 
   /* ── Render ───────────────────────────────────────────────────────────── */
-
-  const daysLeft = daysUntilWedding();
 
   return (
     <div className="pb-[100px]">
@@ -271,23 +261,6 @@ export default function SettingsPage() {
             over judgment — every decision has a cost, and recovery is always an
             option.
           </p>
-          <div
-            className="mt-2 flex items-center gap-2 rounded-xl p-3"
-            style={{ background: 'rgba(245, 158, 11, 0.08)' }}
-          >
-            <span className="text-xl">💒</span>
-            <div>
-              <span
-                className="text-sm font-bold"
-                style={{ color: 'var(--amber)' }}
-              >
-                {daysLeft} days
-              </span>
-              <span className="text-sm" style={{ color: 'var(--t2)' }}>
-                {' '}until the wedding
-              </span>
-            </div>
-          </div>
         </div>
       </Card>
 
@@ -295,7 +268,7 @@ export default function SettingsPage() {
       <Card className="mb-4">
         <Label>About</Label>
         <p className="mt-3 text-sm" style={{ color: 'var(--t3)' }}>
-          Built for Zach&apos;s wedding prep · Sept 5, 2026
+          Momentum · Body composition tracker
         </p>
       </Card>
     </div>
