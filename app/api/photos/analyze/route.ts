@@ -197,13 +197,14 @@ export async function POST(req: NextRequest) {
 
     const analysis = {
       text: analysisResult,
+      persona: profilePersona,
       analyzedAt: new Date().toISOString(),
       comparedWith: prevPhoto?.id ?? null,
     };
     await updatePhotoAnalysis(photoId, analysis);
 
     console.error(`[photos/analyze] Vision success | photoId=${photoId} | latency=${Date.now() - startTime}ms`);
-    return NextResponse.json({ analysis: analysisResult, comparedWith: prevPhoto?.id ?? null });
+    return NextResponse.json({ analysis: analysisResult, persona: profilePersona, comparedWith: prevPhoto?.id ?? null });
   } catch (err) {
     console.error("[photos/analyze] Error:", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });

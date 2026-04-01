@@ -11,6 +11,11 @@ interface VacationCardProps {
   onSaved: () => void;
 }
 
+interface RecentVacation {
+  vacationName: string;
+  notes: string | null;
+}
+
 export function VacationCard({ date, onSaved }: VacationCardProps) {
   const [active, setActive] = useState(false);
   const [vacationName, setVacationName] = useState('');
@@ -18,6 +23,7 @@ export function VacationCard({ date, onSaved }: VacationCardProps) {
   const [logged, setLogged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [recentVacations, setRecentVacations] = useState<RecentVacation[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -40,7 +46,18 @@ export function VacationCard({ date, onSaved }: VacationCardProps) {
     }
   }, [date]);
 
+  const loadRecent = useCallback(async () => {
+    try {
+      const res = await fetch('/api/logs/vacation?recent=1');
+      const data = await res.json();
+      if (Array.isArray(data)) setRecentVacations(data);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadRecent(); }, [loadRecent]);
 
   const canSave = active && vacationName.trim().length > 0;
 
@@ -56,6 +73,7 @@ export function VacationCard({ date, onSaved }: VacationCardProps) {
       setLogged(true);
       setJustSaved(true);
       onSaved();
+      loadRecent();
       setTimeout(() => setJustSaved(false), 2000);
     } catch {
       // Silently fail
@@ -80,7 +98,17 @@ export function VacationCard({ date, onSaved }: VacationCardProps) {
     }
   };
 
+  const handlePickRecent = (v: RecentVacation) => {
+    setVacationName(v.vacationName);
+    if (v.notes) setNotes(v.notes);
+  };
+
   const btnLabel = justSaved ? '✓ Saved' : logged ? 'Update Vacation' : 'Log Vacation Day';
+
+  // Filter out the currently selected vacation from the quick-pick list
+  const quickPicks = recentVacations.filter(
+    (v) => v.vacationName !== vacationName
+  );
 
   return (
     <Card>
@@ -111,6 +139,26 @@ export function VacationCard({ date, onSaved }: VacationCardProps) {
 
       {active && (
         <div className="flex flex-col gap-3 mb-4">
+          {quickPicks.length > 0 && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1.5 block">
+                Recent Vacations
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {quickPicks.map((v) => (
+                  <button
+                    key={v.vacationName}
+                    onClick={() => handlePickRecent(v)}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white/5 border border-white/10
+                      hover:border-amber/50 hover:bg-amber/10 text-t1 transition-all cursor-pointer"
+                  >
+                    {v.vacationName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-0.5 block">
               Vacation Name

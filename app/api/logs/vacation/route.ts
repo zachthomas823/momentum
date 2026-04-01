@@ -2,11 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { vacationLogs } from '@/lib/db/schema';
 import { upsertVacationLog, deleteVacationLog } from '@/lib/db/queries';
-import { eq } from 'drizzle-orm';
+import { eq, gte, sql, desc } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
   try {
     const date = req.nextUrl.searchParams.get('date');
+    const recent = req.nextUrl.searchParams.get('recent');
+
+    // Return distinct vacation names from last 30 days
+    if (recent === '1') {
+      const db = getDb();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+
+      const rows = await db
+        .selectDistinctOn([vacationLogs.vacationName], {
+          vacationName: vacationLogs.vacationName,
+          notes: vacationLogs.notes,
+        })
+        .from(vacationLogs)
+        .where(gte(vacationLogs.date, cutoffStr))
+        .orderBy(vacationLogs.vacationName, desc(vacationLogs.date));
+
+      return NextResponse.json(rows);
+    }
+
     if (!date) {
       return NextResponse.json({ error: 'date query param required' }, { status: 400 });
     }

@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/Label';
 interface DietCardProps {
   date: string;
   onSaved: () => void;
+  onToast?: (data: { message: string; emoji: string; color?: string }) => void;
 }
 
 const DIET_TIERS: Record<number, { emoji: string; name: string; color: string }> = {
@@ -19,7 +20,15 @@ const DIET_TIERS: Record<number, { emoji: string; name: string; color: string }>
   5: { emoji: '🎯', name: 'Sniper Mode', color: '#4fc3f7' },
 };
 
-export function DietCard({ date, onSaved }: DietCardProps) {
+const DIET_MESSAGES: Record<number, { message: string; emoji: string }> = {
+  1: { message: 'Logged it — that\'s what matters', emoji: '📝' },
+  2: { message: 'Not every day has to be perfect', emoji: '👊' },
+  3: { message: 'Steady and consistent wins', emoji: '⚡' },
+  4: { message: 'Dialed in — feeling the momentum', emoji: '💪' },
+  5: { message: 'Absolute sniper today', emoji: '🎯' },
+};
+
+export function DietCard({ date, onSaved, onToast }: DietCardProps) {
   const [mode, setMode] = useState<'vibes' | 'meals'>('vibes');
   const [score, setScore] = useState<number | null>(null);
   const [meals, setMeals] = useState({ breakfast: '', lunch: '', dinner: '', snacks: '' });
@@ -76,6 +85,9 @@ export function DietCard({ date, onSaved }: DietCardProps) {
       setLogged(true);
       setJustSaved(true);
       onSaved();
+      const tier = score ?? 3;
+      const msg = DIET_MESSAGES[tier];
+      onToast?.({ message: msg.message, emoji: msg.emoji, color: tier >= 4 ? 'var(--teal)' : 'var(--amber)' });
       setTimeout(() => setJustSaved(false), 2000);
     } catch {
       // Silently fail — user sees no change

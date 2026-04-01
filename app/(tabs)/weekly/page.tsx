@@ -236,6 +236,12 @@ const ICONS: Record<string, string> = {
   trophy: "🏆",
 };
 
+const PERSONA_LABELS: Record<string, { emoji: string; label: string }> = {
+  coach: { emoji: "🏋️", label: "Coach" },
+  buddy: { emoji: "🤝", label: "Buddy" },
+  analyst: { emoji: "📊", label: "Analyst" },
+};
+
 const MOMENTUM_COLORS: Record<string, string> = {
   building: "var(--teal)",
   holding: "var(--amber)",
@@ -251,6 +257,7 @@ interface AnalysisData {
   oneThing?: { icon: string; body: string };
   momentum?: { status: string; body: string };
   analysis?: string;
+  persona?: string;
 }
 
 function MomentumCard({
@@ -269,7 +276,14 @@ function MomentumCard({
   return (
     <Card>
       <div className="flex items-center justify-between mb-3">
-        <Label>Momentum</Label>
+        <div className="flex items-center gap-2">
+          <Label>Momentum</Label>
+          {data?.persona && PERSONA_LABELS[data.persona] && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white/5 text-t3">
+              {PERSONA_LABELS[data.persona].emoji} {PERSONA_LABELS[data.persona].label}
+            </span>
+          )}
+        </div>
         {data && (
           <button
             onClick={onRefresh}

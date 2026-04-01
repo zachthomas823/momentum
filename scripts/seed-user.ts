@@ -128,6 +128,25 @@ async function main() {
   }
 
   console.log('✓ Seed complete');
+
+  // Ask if user wants to redeploy to Vercel
+  const rl = await import('readline');
+  const prompt = rl.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise<string>((resolve) => {
+    prompt.question('\nDeploy to Vercel production? (y/N) ', resolve);
+  });
+  prompt.close();
+
+  if (answer.trim().toLowerCase() === 'y') {
+    const { execSync } = await import('child_process');
+    console.log('\nDeploying to Vercel...');
+    try {
+      execSync('npx vercel --prod', { stdio: 'inherit' });
+    } catch {
+      console.error('Vercel deploy failed. Run `npx vercel --prod` manually.');
+      process.exit(1);
+    }
+  }
 }
 
 main().catch((err) => {

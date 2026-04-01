@@ -91,8 +91,13 @@ const PERSONA_OPTIONS = [
 ] as const;
 
 function PersonaSelector({ current, onRefresh }: { current: string | null; onRefresh: () => void }) {
-  const selected = current ?? 'coach';
+  const [selected, setSelected] = useState(current ?? 'coach');
   const [state, action, pending] = useActionState(updateProfile, undefined);
+
+  // Sync if parent prop changes (e.g. after profile reload)
+  useEffect(() => {
+    if (current) setSelected(current);
+  }, [current]);
 
   useEffect(() => {
     if (state?.ok) onRefresh();
@@ -109,6 +114,7 @@ function PersonaSelector({ current, onRefresh }: { current: string | null; onRef
           {PERSONA_OPTIONS.map((p) => (
             <label
               key={p.value}
+              onClick={() => setSelected(p.value)}
               className={`relative flex flex-col gap-1 p-3 rounded-xl border cursor-pointer transition-all ${
                 selected === p.value
                   ? 'border-[var(--amber)] bg-[var(--amber)]/[0.08]'
@@ -119,7 +125,8 @@ function PersonaSelector({ current, onRefresh }: { current: string | null; onRef
                 type="radio"
                 name="aiPersona"
                 value={p.value}
-                defaultChecked={selected === p.value}
+                checked={selected === p.value}
+                onChange={() => setSelected(p.value)}
                 className="sr-only"
               />
               <div className="flex items-center gap-2">

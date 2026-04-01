@@ -136,6 +136,7 @@ export async function GET(req: NextRequest) {
 
       const entry = {
         ...parsed,
+        persona: profilePersona,
         generatedAt: new Date().toISOString(),
       };
       cache.set(today, entry);

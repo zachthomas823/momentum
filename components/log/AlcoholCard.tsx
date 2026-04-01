@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/Label';
 interface AlcoholCardProps {
   date: string;
   onSaved: () => void;
+  onToast?: (data: { message: string; emoji: string; color?: string }) => void;
 }
 
 interface DrinkSession {
@@ -19,7 +20,15 @@ interface DrinkSession {
 
 const DRINK_TYPES = ['Beer', 'Wine', 'Liquor', 'Cocktail'];
 
-export function AlcoholCard({ date, onSaved }: AlcoholCardProps) {
+const DRY_DAY_MESSAGES = [
+  'Your tomorrow self thanks you',
+  'Sleep quality is about to be elite',
+  'Clean day in the books',
+  'Momentum is building',
+  'Recovery mode: activated',
+];
+
+export function AlcoholCard({ date, onSaved, onToast }: AlcoholCardProps) {
   const [drinks, setDrinks] = useState(0);
   const [drinkType, setDrinkType] = useState('Beer');
   const [sessions, setSessions] = useState<DrinkSession[]>([]);
@@ -86,6 +95,11 @@ export function AlcoholCard({ date, onSaved }: AlcoholCardProps) {
       });
       setJustSaved(true);
       onSaved();
+      onToast?.({
+        message: DRY_DAY_MESSAGES[Math.floor(Math.random() * DRY_DAY_MESSAGES.length)],
+        emoji: '💧',
+        color: 'var(--teal)',
+      });
       await loadData();
       setTimeout(() => setJustSaved(false), 2000);
     } catch {

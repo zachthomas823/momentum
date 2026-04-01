@@ -51,6 +51,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisPersona, setAnalysisPersona] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const frontRef = useRef<HTMLInputElement>(null);
   const sideRef = useRef<HTMLInputElement>(null);
@@ -62,8 +63,13 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
       if (Array.isArray(data)) {
         setPhotos(data);
         const withAnalysis = data.find((p: PhotoRecord) => p.analysisJson?.text);
-        if (withAnalysis) setAnalysis(withAnalysis.analysisJson!.text);
-        else setAnalysis(null);
+        if (withAnalysis) {
+          setAnalysis(withAnalysis.analysisJson!.text);
+          setAnalysisPersona(withAnalysis.analysisJson!.persona ?? null);
+        } else {
+          setAnalysis(null);
+          setAnalysisPersona(null);
+        }
       }
     } catch {
       // API unreachable
@@ -111,6 +117,7 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
       const data = await res.json();
       if (data.analysis) {
         setAnalysis(data.analysis);
+        setAnalysisPersona(data.persona ?? null);
         await loadData();
       }
     } catch {
@@ -226,9 +233,17 @@ export function PhotoCard({ date, onSaved }: PhotoCardProps) {
       {/* Analysis result */}
       {analysis && (
         <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-2 block">
-            Claude Analysis
-          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-t3">
+              Claude Analysis
+            </label>
+            {analysisPersona && (
+              <span className="text-[9px] text-t3">
+                {analysisPersona === 'coach' ? '🏋️' : analysisPersona === 'buddy' ? '🤝' : '📊'}{' '}
+                {analysisPersona.charAt(0).toUpperCase() + analysisPersona.slice(1)}
+              </span>
+            )}
+          </div>
           <Markdown>{analysis}</Markdown>
         </div>
       )}

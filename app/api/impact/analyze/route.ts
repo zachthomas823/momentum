@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
         console.error(
           `[impact/analyze] Agent SDK success | query="${trimmedQuery}" | latency=${Date.now() - startTime}ms`
         );
-        return NextResponse.json({ response: finalResponse, confidence, fallback: false });
+        return NextResponse.json({ response: finalResponse, confidence, fallback: false, persona: profilePersona });
       }
 
       console.error(

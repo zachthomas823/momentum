@@ -136,16 +136,24 @@ export async function GET(req: NextRequest) {
     const { todayLocal: getTodayLocal } = await import("@/lib/date-utils");
     const weekOf = searchParams.get("weekOf") ?? getTodayLocal();
 
-    // Current and previous week boundaries
-    const current = weekBounds(weekOf);
-    const prevDate = new Date(current.start + "T12:00:00");
-    prevDate.setDate(prevDate.getDate() - 7);
-    const previous = weekBounds(localDateStr(prevDate));
+    // Rolling 7-day windows: last 7 days vs the 7 days before that
+    const today = new Date(weekOf + "T12:00:00");
+    const sevenAgo = new Date(today);
+    sevenAgo.setDate(today.getDate() - 6); // 7 days inclusive
+    const eightAgo = new Date(today);
+    eightAgo.setDate(today.getDate() - 7);
+    const fourteenAgo = new Date(today);
+    fourteenAgo.setDate(today.getDate() - 13); // 7 days inclusive
 
-    // Fetch both weeks
+    const currentStart = localDateStr(sevenAgo);
+    const currentEnd = localDateStr(today);
+    const previousStart = localDateStr(fourteenAgo);
+    const previousEnd = localDateStr(eightAgo);
+
+    // Fetch both windows
     const [currentDays, previousDays] = await Promise.all([
-      getDayRecords(current.start, current.end),
-      getDayRecords(previous.start, previous.end),
+      getDayRecords(currentStart, currentEnd),
+      getDayRecords(previousStart, previousEnd),
     ]);
 
     // Compute stats for each week

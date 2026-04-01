@@ -75,6 +75,7 @@ interface AskResponse {
   mechanismChain?: string[];
   trajectoryShift?: [number, number];
   fallback?: boolean;
+  persona?: string;
   error?: string;
 }
 
@@ -288,12 +289,18 @@ export default function ImpactPage() {
                   </div>
                 )}
 
-                {/* Confidence + fallback indicator */}
+                {/* Confidence + fallback + persona indicator */}
                 <div className="flex items-center gap-2">
                   <ConfBadge level={askResult.confidence ?? "mod"} />
                   {askResult.fallback && (
                     <span className="text-[9px]" style={{ color: "var(--t3)" }}>
                       (instant — local engine)
+                    </span>
+                  )}
+                  {askResult.persona && !askResult.fallback && (
+                    <span className="text-[9px]" style={{ color: "var(--t3)" }}>
+                      {askResult.persona === "coach" ? "🏋️" : askResult.persona === "buddy" ? "🤝" : "📊"}{" "}
+                      {askResult.persona.charAt(0).toUpperCase() + askResult.persona.slice(1)}
                     </span>
                   )}
                 </div>
